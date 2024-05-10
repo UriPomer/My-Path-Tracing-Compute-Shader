@@ -1,0 +1,82 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+// #pragma kernel DebugRayDirection
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+float2 Resolution;
+float4x4 CameraToWorld;
+float4x4 CameraInverseProjection;
+
+
+float sdot(float3 x, float3 y, float f = 1.0f)
+{
+    return saturate(dot(x, y) * f);
+}
+
+struct Ray
+{
+    float3 origin;
+    float3 dir;
+};
+
+double hit_sphere(float3 center, float radius, Ray r)
+{
+    float3 oc = center - r.origin;
+    float a = dot(r.dir, r.dir);
+    float h = dot(r.dir, oc);
+    float c = dot(oc, oc) - radius * radius;
+    float discriminant = h * h - a * c;
+    
+    if(discriminant < 0)
+    {
+        return -1.0;
+    }
+
+    return (h - sqrt(discriminant)) / a;
+}
+
+float3 ray_at(Ray r, float t)
+{
+    return r.origin + t * r.dir;
+}
+
+Ray gen_ray(float2 pixelCoord)
+{
+    float2 screenPos = (pixelCoord + 0.5f) / Resolution;
+    float2 ndcPos = screenPos * 2.0f - 1.0f;
+
+    float3 direction = mul(CameraInverseProjection, float4(ndcPos, 0.0f, 1.0f)).xyz;
+    direction = mul(CameraToWorld, float4(direction, 0.0f)).xyz;
+    direction = normalize(direction);
+
+    Ray ray;
+    ray.origin = mul(CameraToWorld, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
+    ray.dir = direction;
+
+    return ray;
+}
+
+[numthreads(8,8,1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    Ray r = gen_ray(id.xy);
+    
+    const float3 sphereCenter = float3(0, 0, 0);
+    
+    double t = hit_sphere(sphereCenter, 2, r);
+    
+    if(t > 0.0)
+    {
+        float3 N = normalize(ray_at(r, t) - sphereCenter);
+        Result[id.xy] = float4(0.5 * (N.x + 1), 0.5 * (N.y + 1), 0.5 * (N.z + 1), 1.0);
+    }
+    else
+    {
+        float blend = id.y / Resolution.y;
+        float3 col = lerp(float3(1, 1, 1), float3(0.68, 0.85, 1), blend);
+        Result[id.xy] = float4(col, 1.0);
+    }
+}
+
