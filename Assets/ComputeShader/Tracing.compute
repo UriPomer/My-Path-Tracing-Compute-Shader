@@ -23,7 +23,6 @@ float energy(float3 color)
     return dot(color, 1.0f / 3.0f);
 }
 
-
 float2 _Pixel;
 float _Seed;
 
@@ -130,7 +129,7 @@ RayHit Trace(Ray r)
     RayHit hit = GenRayHit();
     for(uint i = 0; i < numSpheres; i++)
     {
-        Sphere sphere = _Spheres[i];
+        Sphere sphere = _Spheres[uint(i)];
         RayHit tempHit = HitSphere(sphere, r);
         if(tempHit.distance > 0.0 && tempHit.distance < hit.distance)
         {
@@ -199,7 +198,7 @@ float3 Shade(inout Ray ray, RayHit hit)
         }
         else
         {
-            ray.energy = float3(0.0f, 0.0f, 0.0f);
+            ray.energy = 0.0f;
         }
 
         return hit.mat.emission;
@@ -218,11 +217,12 @@ float3 Shade(inout Ray ray, RayHit hit)
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
     Ray r = GenRayByID(id.xy);
+    _Pixel = id.xy;
     float3 result = float3(0.0f, 0.0f, 0.0f);
     for (int i = 0; i < 10; i++)
     {
         RayHit hit = Trace(r);
-        float3 color = Shade(r, hit)  * r.energy;
+        float3 color = Shade(r, hit) * r.energy;
         result += color;
 
         if(!any(r.energy))
