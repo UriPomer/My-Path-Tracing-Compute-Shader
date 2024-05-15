@@ -120,10 +120,10 @@ Ray GenRayByID(float2 pixelCoord)
 }
 
 
-float3 SampleSkybox(float3 dir)
+float3 SampleSkybox(Ray ray)
 {
-    float theta = acos(dir.y) / - PI;
-    float phi = atan2(dir.x, - dir.z) / - PI * 0.5f; 
+    float theta = acos(ray.dir.y) / -PI;
+    float phi = atan2(ray.dir.x, - ray.dir.z) / - PI * 0.5f;
     return _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, float2(phi, theta), 0).xyz;
 }
 
@@ -212,7 +212,7 @@ float3 Shade(inout Ray ray, RayHit hit)
     else
     {
         ray.energy = 0.0f;
-        return SampleSkybox(ray.dir);
+        return SampleSkybox(ray);
     }
 }
 

@@ -37,14 +37,19 @@ public class ObjectManager : MonoBehaviour
             Renderer renderer = sphere.GetComponent<Renderer>();
             Material material = renderer.material;
             newSphere.position = sphere.transform.position;
-            newSphere.radius = sphere.radius;
+            newSphere.radius = sphere.transform.localScale.x / 2;
 
             newSphere.albedo = new Vector3(material.color.r, material.color.g, material.color.b);
             newSphere.specular = new Vector3(material.GetFloat("_Metallic"), material.GetFloat("_Metallic"),
                 material.GetFloat("_Metallic"));
             newSphere.smoothness = material.GetFloat("_Glossiness");
 
-            Color emission = material.GetColor("_EmissionColor");
+            Color emission = Color.black; // 默认值
+            if (material.HasProperty("_EmissionColor"))
+            {
+                emission = material.GetColor("_EmissionColor");
+            }
+
             newSphere.emission = new Vector3(emission.r, emission.g, emission.b);
             spheres.Add(newSphere);
         }
