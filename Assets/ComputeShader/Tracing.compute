@@ -53,35 +53,44 @@ RayHit HitSphere(Sphere sphere, Ray r)
     float3 center = sphere.position;
     float radius = sphere.radius;
     
-    float3 oc = center - r.origin;
+    float3 oc = r.origin - center;
     float a = dot(r.dir, r.dir);
-    float h = dot(r.dir, oc);
+    float b = dot(r.dir, oc);
     float c = dot(oc, oc) - radius * radius;
-    float discriminant = h * h - a * c;
+    float discriminant = b * b - a * c;
 
     RayHit hit = GenRayHit();
-    
-    if(discriminant < 0)
+
+    if (discriminant < 0)
     {
         return hit;
     }
-    
-    float t = (h - sqrt(discriminant)) / a;
-    if(t < 0)
-    {
-        t = (h + sqrt(discriminant)) / a;
-    }
 
-    if( t > 0 && t < hit.distance)
+    float sqrtDiscriminant = sqrt(discriminant);
+    float t0 = (-b - sqrtDiscriminant) / a;
+    float t1 = (-b + sqrtDiscriminant) / a;
+
+    if (t0 > 0.0 && t0 < hit.distance)
     {
-        hit.position = r.origin + t * r.dir;
+        hit.position = r.origin + t0 * r.dir;
         hit.normal = normalize(hit.position - center);
         hit.albedo = sphere.albedo;
         hit.specular = sphere.specular;
         hit.smoothness = sphere.smoothness;
         hit.emission = sphere.emission;
-        hit.distance = t;
+        hit.distance = t0;
     }
+    else if (t1 > 0.0 && t1 < hit.distance)
+    {
+        hit.position = r.origin + t1 * r.dir;
+        hit.normal = normalize(hit.position - center);
+        hit.albedo = sphere.albedo;
+        hit.specular = sphere.specular;
+        hit.smoothness = sphere.smoothness;
+        hit.emission = sphere.emission;
+        hit.distance = t1;
+    }
+
     return hit;
 }
 
@@ -94,20 +103,28 @@ Ray GenRayByID(float2 pixelCoord)
 {
     uint width, height;
     _Result.GetDimensions(width, height);
-    
-    float2 screenPos = (pixelCoord + 0.5f) / float2(width, height);
-    float2 ndcPos = screenPos * 2.0f - 1.0f;
 
-    float3 direction = mul(_CameraInverseProjection, float4(ndcPos, 0.0f, 1.0f)).xyz;
-    direction = mul(_CameraToWorld, float4(direction, 0.0f)).xyz;
-    direction = normalize(direction);
+    float2 screenPos = (pixelCoord + 0.5f) / float2(width, height);
+    float2 ndcPos = screenPos * 2.0f - 1.0f;  // NDC 坐标
+
+    float4 clipPos = float4(ndcPos, 1.0f, 1.0f);
+    float3 viewPos = mul(_CameraInverseProjection, clipPos).xyz;
+    float3 worldDir = mul((float3x3)_CameraToWorld, normalize(viewPos));
 
     Ray ray;
     ray.origin = mul(_CameraToWorld, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
-    ray.dir = direction;
+    ray.dir = normalize(worldDir);
     ray.energy = float3(1.0f, 1.0f, 1.0f);
 
     return ray;
+}
+
+
+float3 SampleSkybox(float3 dir)
+{
+    float theta = acos(dir.y) / - PI;
+    float phi = atan2(dir.x, - dir.z) / - PI * 0.5f; 
+    return _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, float2(phi, theta), 0).xyz;
 }
 
 
@@ -195,10 +212,7 @@ float3 Shade(inout Ray ray, RayHit hit)
     else
     {
         ray.energy = 0.0f;
-        // Sample the skybox and write it
-        float theta = acos(ray.dir.y) / -PI;
-        float phi = atan2(ray.dir.x, -ray.dir.z) / -PI * 0.5f;
-        return _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, float2(phi, theta), 0).xyz;
+        return SampleSkybox(ray.dir);
     }
 }
 
@@ -208,20 +222,16 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     Ray r = GenRayByID(id.xy);
     _Pixel = id.xy;
     float3 result = float3(0.0f, 0.0f, 0.0f);
-    for (int i = 0; i < 10; i++)
+    for(int i = 0; i < 8; i++)
     {
         RayHit hit = Trace(r);
-        float3 color = Shade(r, hit) * r.energy;
-        result += color;
-    
-        if(!any(r.energy))
+        result += Shade(r, hit) * r.energy;
+
+        if (!any(r.energy))
         {
             break;
         }
     }
-
     _Result[id.xy] = float4(result, 1.0f);
-    
-    
 }
 

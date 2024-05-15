@@ -34,13 +34,18 @@ public class ObjectManager : MonoBehaviour
         foreach (var sphere in sphereArray)
         {
             Sphere newSphere = new Sphere();
+            Renderer renderer = sphere.GetComponent<Renderer>();
+            Material material = renderer.material;
             newSphere.position = sphere.transform.position;
             newSphere.radius = sphere.radius;
-            newSphere.albedo = sphere.GetComponent<Renderer>().material.GetVector("_Color");
-            newSphere.specular =
-                new Vector3(sphere.GetComponent<Renderer>().material.GetFloat("_Metallic"), 0, 0);
-            newSphere.smoothness = sphere.GetComponent<Renderer>().material.GetFloat("_Glossiness");
-            newSphere.emission = sphere.GetComponent<Renderer>().material.GetVector("_EmissionColor");
+
+            newSphere.albedo = new Vector3(material.color.r, material.color.g, material.color.b);
+            newSphere.specular = new Vector3(material.GetFloat("_Metallic"), material.GetFloat("_Metallic"),
+                material.GetFloat("_Metallic"));
+            newSphere.smoothness = material.GetFloat("_Glossiness");
+
+            Color emission = material.GetColor("_EmissionColor");
+            newSphere.emission = new Vector3(emission.r, emission.g, emission.b);
             spheres.Add(newSphere);
         }
     }
