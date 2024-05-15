@@ -9,18 +9,12 @@ public struct Sphere
 {
     public Vector3 position;
     public float radius;
-    public MyMaterial material;
-}
-
-
-[StructLayout(LayoutKind.Sequential)]
-public struct MyMaterial
-{
     public Vector3 albedo;
     public Vector3 specular;
     public float smoothness;
     public Vector3 emission;
 }
+
 
 // 用于统计场景中的物体信息，传递给RayTracingShader
 public class ObjectManager : MonoBehaviour
@@ -42,12 +36,11 @@ public class ObjectManager : MonoBehaviour
             Sphere newSphere = new Sphere();
             newSphere.position = sphere.transform.position;
             newSphere.radius = sphere.radius;
-            newSphere.material = new MyMaterial();
-            newSphere.material.albedo = sphere.GetComponent<Renderer>().material.GetVector("_Color");
-            newSphere.material.specular =
+            newSphere.albedo = sphere.GetComponent<Renderer>().material.GetVector("_Color");
+            newSphere.specular =
                 new Vector3(sphere.GetComponent<Renderer>().material.GetFloat("_Metallic"), 0, 0);
-            newSphere.material.smoothness = sphere.GetComponent<Renderer>().material.GetFloat("_Glossiness");
-            newSphere.material.emission = sphere.GetComponent<Renderer>().material.GetVector("_EmissionColor");
+            newSphere.smoothness = sphere.GetComponent<Renderer>().material.GetFloat("_Glossiness");
+            newSphere.emission = sphere.GetComponent<Renderer>().material.GetVector("_EmissionColor");
             spheres.Add(newSphere);
         }
     }

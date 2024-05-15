@@ -23,7 +23,6 @@ public class Tracing : MonoBehaviour
     {
         cam = GetComponent<Camera>();
         spheres = ObjectManager.GetSpheres();
-        // Debug.Log(spheres);
         isInited = true;
     }
 
@@ -46,7 +45,7 @@ public class Tracing : MonoBehaviour
             target.enableRandomWrite = true;
             target.Create();
         }
-        
+        spheres = ObjectManager.GetSpheres();
         ComputeBuffer sphereBuffer = new ComputeBuffer(spheres.Count, Marshal.SizeOf(typeof(Sphere)));
         sphereBuffer.SetData(spheres);
         tracingShader.SetBuffer(kernelID, "_Spheres", sphereBuffer);
