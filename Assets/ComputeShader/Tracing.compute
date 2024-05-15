@@ -177,7 +177,7 @@ float3 SampleReflectionDirectionSphere(float3 normal, float alpha)
 
 float3 Shade(inout Ray ray, RayHit hit)
 {
-    if(hit.distance < 1.#INF - 20.0f)
+    if(hit.distance < 1.#INF)
     {
         // Calculate chances of diffuse and specular reflection
         hit.albedo = min(1.0f - hit.specular, hit.albedo);
@@ -192,8 +192,8 @@ float3 Shade(inout Ray ray, RayHit hit)
             float alpha = SmoothnessToPhongAlpha(hit.smoothness);
             float3 reflected = reflect(ray.dir, hit.normal);
             ray.dir = SampleReflectionDirectionSphere(reflected, alpha);
-            
-            ray.energy *= (1.0f / specChance) * hit.specular * sdot(hit.normal, ray.dir, (alpha + 2) / (alpha + 1));
+            float f = (alpha + 2) / (alpha + 1);
+            ray.energy *= (1.0f / specChance) * hit.specular * sdot(hit.normal, ray.dir, f);
         }
         else if(diffChance > 0 && roulette < specChance + diffChance)
         {

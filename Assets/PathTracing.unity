@@ -405,7 +405,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   tracingShader: {fileID: 7200000, guid: f729f9caa1fdb5140afe66433bd74ff9, type: 3}
-  skyboxTexture: {fileID: 2800000, guid: 057324218a1d32249bb465fd3b31600d, type: 3}
+  skyboxTexture: {fileID: 2800000, guid: 4a55f77b0c2800047b1d1f32ca46dff5, type: 3}
   directionalLight: {fileID: 59273704}
 --- !u!1 &700741927
 GameObject:
