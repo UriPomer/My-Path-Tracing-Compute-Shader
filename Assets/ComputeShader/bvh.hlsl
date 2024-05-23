@@ -21,21 +21,28 @@ struct Triangle {
 
 RWStructuredBuffer<Triangle> _triangles;
 
-bool IntersectAABB(inout Ray ray, const float3 aabbMin, const float3 aabbMax)
+float IntersectAABB(inout Ray ray, const float3 aabbMin, const float3 aabbMax, inout RayHit hit)
 {
-    float tx1 = (aabbMin.x - ray.origin.x) / ray.dir.x;
-    float tx2 = (aabbMax.x - ray.origin.x) / ray.dir.x;
+    ray.rDir = float3(1.0f/ ray.dir.x, 1.0f / ray.dir.y, 1.0f / ray.dir.z);
+    
+    float tx1 = (aabbMin.x - ray.origin.x) * ray.rDir.x;
+    float tx2 = (aabbMax.x - ray.origin.x) * ray.rDir.x;
     float tmin = min(tx1, tx2);
     float tmax = max(tx1, tx2);
-    float ty1 = (aabbMin.y - ray.origin.y) / ray.dir.y;
-    float ty2 = (aabbMax.y - ray.origin.y) / ray.dir.y;
+    float ty1 = (aabbMin.y - ray.origin.y) * ray.rDir.y;
+    float ty2 = (aabbMax.y - ray.origin.y) * ray.rDir.y;
     tmin = max(tmin, min(ty1, ty2));
     tmax = min(tmax, max(ty1, ty2));
-    float tz1 = (aabbMin.z - ray.origin.z) / ray.dir.z;
-    float tz2 = (aabbMax.z - ray.origin.z) / ray.dir.z;
+    float tz1 = (aabbMin.z - ray.origin.z) * ray.rDir.z;
+    float tz2 = (aabbMax.z - ray.origin.z) * ray.rDir.z;
     tmin = max(tmin, min(tz1, tz2));
     tmax = min(tmax, max(tz1, tz2));
-    return tmax >= tmin && tmax >= 0;
+
+    if (tmax >= tmin && tmax >= 0.0f && hit.distance > 0)
+    {
+        return tmin;
+    }
+    return 1e30f;
 }
 
 void IntersectTriangle(inout Ray ray, const Triangle tri, inout RayHit hit)
@@ -62,20 +69,62 @@ void IntersectTriangle(inout Ray ray, const Triangle tri, inout RayHit hit)
 
 void IntersectBVH(inout Ray ray, const int nodeIdx)
 {
-    BVHNode node = _bvhNodes[nodeIdx];
-    if(!IntersectAABB(ray, node.aabbMin,node.aabbMax)) return;
-    if(node.numTriangles > 0)  //isLeaf
+    BVHNode* node = &_bvhNodes[nodeIdx];
+    BVHNode* stack[64];
+    int stackPtr = 0;
+    RayHit hit = GenRayHit();
+    while (1)
     {
-        for(int i = 0; i < node.numTriangles; i++)
+        if(node->numTriangles > 0)
         {
-            Triangle tri = _triangles[node.firstTriangleIdx + i];
-            RayHit hit = GenRayHit();
-            IntersectTriangle(ray, tri, hit);
+            for(int i = 0; i < node->numTriangles; i++)
+            {
+                Triangle tri = _triangles[node->firstTriangleIdx + i];
+                IntersectTriangle(ray, tri, hit);
+            }
+            if(stackPtr == 0) break;
+            else
+            {
+                stackPtr--;
+                node = stack[stackPtr];
+            }
+
+            continue;
         }
-    }
-    else
-    {
-        IntersectBVH(ray, node.leftNodeIdx);
-        IntersectBVH(ray, node.leftNodeIdx + 1);
+        BVHNode* child1 = &_bvhNodes[node->leftNodeIdx];
+        BVHNode* child2 = &_bvhNodes[node->leftNodeIdx + 1];
+        float dist1 = IntersectAABB(ray, child1->aabbMin, child1->aabbMax,hit);
+        float dist2 = IntersectAABB(ray, child2->aabbMin, child2->aabbMax,hit);
+
+        if(dist1 > dist2)
+        {
+            // swap dist1 and dist2
+            float temp = dist1;
+            dist1 = dist2;
+            dist2 = temp;
+
+            // swap child1 and child2
+            BVHNode* tempNode = child1;
+            child1 = child2;
+            child2 = tempNode;
+        }
+        if(dist1 == 1e30f)
+        {
+            if(stackPtr == 0) break;
+            else
+            {
+                stackPtr--;
+                node = stack[stackPtr];
+            }
+        }
+        else
+        {
+            node = child1;
+            if(dist2 != 1e30f)
+            {
+                stack[stackPtr] = child2;
+                stackPtr++;
+            }
+        }
     }
 }

@@ -14,6 +14,7 @@ struct Ray
     float3 origin;
     float3 dir;
     float3 energy;
+    float3 rDir;
 };
 
 struct RayHit

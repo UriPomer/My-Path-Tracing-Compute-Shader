@@ -25,6 +25,24 @@ public class BVHBuilder : MonoBehaviour
         public int numTriangles;
     }
     
+    public struct AABB
+    {
+        public Vector3 bmin;
+        public Vector3 bmax;
+        
+        public void grow(Vector3 p)
+        {
+            bmin = Vector3.Min(bmin, p);
+            bmax = Vector3.Max(bmax, p);
+        }
+
+        public float area()
+        {
+            Vector3 d = bmax - bmin;
+            return d.x * d.y + d.y * d.z + d.z * d.x;
+        }
+    }
+    
     public Triangle[] triangles;
     public int[] triIndices;
     public BVHNode[] bnodes;
@@ -41,15 +59,15 @@ public class BVHBuilder : MonoBehaviour
             triIndices[i] = i;
         }
         
-        BuildRootBVH();
+        InitRootBVHNode();
         Subdivide(rootNodeIdx);
     }
     
-    public void BuildRootBVH()
+    public void InitRootBVHNode()
     {
         BVHNode rootNode = bnodes[rootNodeIdx];
-        rootNode.aabbMin = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
-        rootNode.aabbMax = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+        rootNode.aabbMin = new Vector3(1e30f, 1e30f, 1e30f);
+        rootNode.aabbMax = new Vector3(-1e30f, -1e30f, -1e30f);
         rootNode.firstTriangleIdx = 0;
         rootNode.numTriangles = triangles.Length;
         rootNode.leftNodeIdx = 0;
@@ -60,8 +78,8 @@ public class BVHBuilder : MonoBehaviour
     public void UpdateBounds(int nodeIdx)
     {
         BVHNode node = bnodes[nodeIdx];
-        node.aabbMin = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
-        node.aabbMax = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+        node.aabbMin = new Vector3(1e30f, 1e30f, 1e30f);
+        node.aabbMax = new Vector3(-1e30f, -1e30f, -1e30f);
         for (int i = node.firstTriangleIdx; i < node.numTriangles; i++)
         {
             Triangle tri = triangles[triIndices[node.firstTriangleIdx + i]];
@@ -77,27 +95,43 @@ public class BVHBuilder : MonoBehaviour
     public void Subdivide(int idx)
     {
         BVHNode node = bnodes[idx];
-        if (node.numTriangles <= MAX_TRIANGLES_PER_NODE)
+
+        int bestAxis = -1;
+        float bestPos = 0.0f;
+        float bestCost = 1e30f;
+        
+        Vector3 e = node.aabbMax - node.aabbMin;
+        float parentArea = e.x * e.y + e.y * e.z + e.z * e.x;
+        float parentCost = parentArea * node.numTriangles;
+        
+        for (int axis = 0; axis < 3; axis++)
+        {
+            for (int loopIdx = 0; loopIdx < node.numTriangles; loopIdx++)
+            {
+                Triangle tri = triangles[triIndices[node.firstTriangleIdx + loopIdx]];
+                float candidateSplitPos = tri.centroid[axis];
+                float cost = EvaluateSAH(ref node, axis, candidateSplitPos);
+                if(cost < bestCost)
+                {
+                    bestCost = cost;
+                    bestAxis = axis;
+                    bestPos = candidateSplitPos;
+                }
+                
+                
+            }
+        }
+        
+        if (bestCost >= parentCost)
         {
             return;
         }
-        Vector3 extents = node.aabbMax - node.aabbMin;
-        int axis = 0;
-        if (extents.y > extents.x)
-        {
-            axis = 1;
-        }
-        if (extents.z > extents.y)
-        {
-            axis = 2;
-        }
-        float splitPos = 0.5f * (node.aabbMin[axis] + node.aabbMax[axis]);
 
         int i = node.firstTriangleIdx;
         int j = node.numTriangles - 1;
         while (i <= j)
         {
-            if(triangles[triIndices[i]].centroid[axis] < splitPos)
+            if(triangles[triIndices[i]].centroid[bestAxis] < bestPos)
             {
                 i++;
             }
@@ -129,5 +163,33 @@ public class BVHBuilder : MonoBehaviour
         //recursively subdivide
         Subdivide(leftNodeIdx);
         Subdivide(rightNodeIdx);
+    }
+
+    public float EvaluateSAH(ref BVHNode bnode, int axis, float pos)
+    {
+        AABB leftAABB = new AABB();
+        AABB rightAABB = new AABB();
+        int leftCount = 0;
+        int rightCount = 0;
+        for (int i = 0; i < bnode.numTriangles; i++)
+        {
+            Triangle tri = triangles[triIndices[bnode.firstTriangleIdx + i]];
+            if (tri.centroid[axis] < pos)
+            {
+                leftAABB.grow(tri.v0);
+                leftAABB.grow(tri.v1);
+                leftAABB.grow(tri.v2);
+                leftCount++;
+            }
+            else
+            {
+                rightAABB.grow(tri.v0);
+                rightAABB.grow(tri.v1);
+                rightAABB.grow(tri.v2);
+                rightCount++;
+            }
+        }
+        float cost = leftCount * leftAABB.area() + rightCount * rightAABB.area();
+        return cost > 0 ? cost : 1e30f;
     }
 }
