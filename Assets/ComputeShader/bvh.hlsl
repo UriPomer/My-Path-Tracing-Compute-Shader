@@ -5,8 +5,7 @@
 struct BVHNode {
     float3 aabbMin;
     float3 aabbMax;
-    int leftNodeIdx;
-    int firstTriangleIdx;
+    int leftFirstIdx;
     int numTriangles;
 };
 
@@ -40,7 +39,7 @@ float IntersectAABB(inout Ray ray, const float3 aabbMin, const float3 aabbMax, i
 
     if (tmax >= tmin && tmax >= 0.0f && hit.distance > 0)
     {
-        return tmin;
+        return tmin;    //distance to the intersection point
     }
     return 1e30f;
 }
@@ -79,7 +78,7 @@ void IntersectBVH(inout Ray ray, const int nodeIdx)
         {
             for(int i = 0; i < node->numTriangles; i++)
             {
-                Triangle tri = _triangles[node->firstTriangleIdx + i];
+                Triangle tri = _triangles[node->leftFirstIdx + i];
                 IntersectTriangle(ray, tri, hit);
             }
             if(stackPtr == 0) break;
@@ -91,8 +90,8 @@ void IntersectBVH(inout Ray ray, const int nodeIdx)
 
             continue;
         }
-        BVHNode* child1 = &_bvhNodes[node->leftNodeIdx];
-        BVHNode* child2 = &_bvhNodes[node->leftNodeIdx + 1];
+        BVHNode* child1 = &_bvhNodes[node->leftFirstIdx];
+        BVHNode* child2 = &_bvhNodes[node->leftFirstIdx + 1];
         float dist1 = IntersectAABB(ray, child1->aabbMin, child1->aabbMax,hit);
         float dist2 = IntersectAABB(ray, child2->aabbMin, child2->aabbMax,hit);
 
@@ -113,8 +112,7 @@ void IntersectBVH(inout Ray ray, const int nodeIdx)
             if(stackPtr == 0) break;
             else
             {
-                stackPtr--;
-                node = stack[stackPtr];
+                node = stack[--stackPtr];
             }
         }
         else
