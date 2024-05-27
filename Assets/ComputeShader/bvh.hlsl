@@ -22,18 +22,17 @@ RWStructuredBuffer<Triangle> _triangles;
 
 float IntersectAABB(inout Ray ray, const float3 aabbMin, const float3 aabbMax, inout RayHit hit)
 {
-    ray.rDir = float3(1.0f/ ray.dir.x, 1.0f / ray.dir.y, 1.0f / ray.dir.z);
-    
-    float tx1 = (aabbMin.x - ray.origin.x) * ray.rDir.x;
-    float tx2 = (aabbMax.x - ray.origin.x) * ray.rDir.x;
+   
+    float tx1 = (aabbMin.x - ray.origin.x) / ray.dir.x;
+    float tx2 = (aabbMax.x - ray.origin.x) / ray.dir.x;
     float tmin = min(tx1, tx2);
     float tmax = max(tx1, tx2);
-    float ty1 = (aabbMin.y - ray.origin.y) * ray.rDir.y;
-    float ty2 = (aabbMax.y - ray.origin.y) * ray.rDir.y;
+    float ty1 = (aabbMin.y - ray.origin.y) / ray.dir.y;
+    float ty2 = (aabbMax.y - ray.origin.y) / ray.dir.y;
     tmin = max(tmin, min(ty1, ty2));
     tmax = min(tmax, max(ty1, ty2));
-    float tz1 = (aabbMin.z - ray.origin.z) * ray.rDir.z;
-    float tz2 = (aabbMax.z - ray.origin.z) * ray.rDir.z;
+    float tz1 = (aabbMin.z - ray.origin.z) / ray.dir.z;
+    float tz2 = (aabbMax.z - ray.origin.z) / ray.dir.z;
     tmin = max(tmin, min(tz1, tz2));
     tmax = min(tmax, max(tz1, tz2));
 

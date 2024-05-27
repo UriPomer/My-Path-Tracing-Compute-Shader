@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -30,6 +31,35 @@ public class ObjectManager : MonoBehaviour
     private void Awake()
     {
         var sphereArray = FindObjectsOfType<SphereCollider>();
+
+        foreach (var sphere in sphereArray)
+        {
+            Sphere newSphere = new Sphere();
+            Renderer renderer = sphere.GetComponent<Renderer>();
+            Material material = renderer.material;
+            newSphere.position = sphere.transform.position;
+            newSphere.radius = sphere.transform.localScale.x / 2;
+
+            newSphere.albedo = new Vector3(material.color.r, material.color.g, material.color.b);
+            newSphere.specular = new Vector3(material.GetFloat("_Metallic"), material.GetFloat("_Metallic"),
+                material.GetFloat("_Metallic"));
+            newSphere.smoothness = material.GetFloat("_Glossiness");
+
+            Color emission = Color.black; // 默认值
+            if (material.HasProperty("_EmissionColor"))
+            {
+                emission = material.GetColor("_EmissionColor");
+            }
+
+            newSphere.emission = new Vector3(emission.r, emission.g, emission.b);
+            spheres.Add(newSphere);
+        }
+    }
+
+    private void Update()
+    {
+        var sphereArray = FindObjectsOfType<SphereCollider>();
+        spheres.Clear();
 
         foreach (var sphere in sphereArray)
         {

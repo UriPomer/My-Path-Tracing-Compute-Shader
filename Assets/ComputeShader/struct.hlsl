@@ -3,9 +3,9 @@ struct Sphere
     float3 position;
     float radius;
     float3 albedo;
-    float3 emission;
     float3 specular;
     float smoothness;
+    float3 emission;
 };
 
 
@@ -14,7 +14,6 @@ struct Ray
     float3 origin;
     float3 dir;
     float3 energy;
-    float3 rDir;
 };
 
 struct RayHit
