@@ -49,6 +49,7 @@ public class ObjectManager : MonoBehaviour
             if (material.HasProperty("_EmissionColor"))
             {
                 emission = material.GetColor("_EmissionColor");
+                Debug.Log(emission);
             }
 
             newSphere.emission = new Vector3(emission.r, emission.g, emission.b);
@@ -75,7 +76,7 @@ public class ObjectManager : MonoBehaviour
             newSphere.smoothness = material.GetFloat("_Glossiness");
 
             Color emission = Color.black; // 默认值
-            if (material.HasProperty("_EmissionColor"))
+            if (material.IsKeywordEnabled("_EMISSION"))
             {
                 emission = material.GetColor("_EmissionColor");
             }
