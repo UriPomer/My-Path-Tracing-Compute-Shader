@@ -27,16 +27,6 @@ struct RayHit
     float smoothness;
 };
 
-struct Plane
-{
-    float3 normal;
-    float3 p;
-    float3 albedo;
-    float3 emission;
-    float3 specular;
-    float smoothness;
-};
-
 RayHit GenRayHit()
 {
     RayHit hit;

@@ -1,276 +1,177 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices;
 using UnityEngine;
+
+public struct MaterialData
+{
+    public Vector4 Color;
+    public Vector3 Emission;
+    public float Metallic;
+    public float Smoothness;
+    public float IOR;
+    public float RenderMode;
+    public int AlbedoIdx;
+    public int EmitIdx;
+    public int MetallicIdx;
+    public int NormalIdx;
+    public int RoughIdx;
+    
+    public static int TypeSize = Marshal.SizeOf(typeof(MaterialData));
+}
 
 public class BVHBuilder : MonoBehaviour
 {
-    const int MAX_TRIANGLES_PER_NODE = 4;
+    public static List<MaterialData> materials = new List<MaterialData>();
+    
+    // Mesh data
+    private static List<Vector3> vertices = new List<Vector3>();
+    private static List<Vector2> uvs = new List<Vector2>();
+    private static List<Vector3> normals = new List<Vector3>();
+    private static List<Vector4> tangents = new List<Vector4>();
+    
+    
     const int N = 1000;
+    public static Triangle[] triangles;
+    public static int[] triIndices;
+    public static BVHNode[] bnodes;
     
-    public struct Triangle
+    static int rootNodeIdx = 0;
+    static int nodeUsed = 0;
+    
+    public static List<GameObject> GetObjectsCount()
     {
-        public Vector3 v0;
-        public Vector3 v1;
-        public Vector3 v2;
-        public Vector3 centroid;
+        return ObjectManager.GetObjects();
     }
     
-    
-    public struct BVHNode
+    private static void BuildMaterialData(List<GameObject> objects)
     {
-        public Vector3 aabbMin;
-        public Vector3 aabbMax;
-        public int leftFirstIdx;    //left child or first triangle index
-        public int numTriangles;
-    }
-    
-    public struct AABB
-    {
-        public Vector3 bmin;
-        public Vector3 bmax;
+        materials.Clear();
+        List<Texture2D> albedoTex = new List<Texture2D>();
+        List<Texture2D> emitTex = new List<Texture2D>();
+        List<Texture2D> metalTex = new List<Texture2D>();
+        List<Texture2D> normTex = new List<Texture2D>();
+        List<Texture2D> roughTex = new List<Texture2D>();
         
-        public void grow(Vector3 p)
+        materials.Add(new MaterialData()
         {
-            bmin = Vector3.Min(bmin, p);
-            bmax = Vector3.Max(bmax, p);
-        }
-
-        public float area()
+            Color = new Vector3(1.0f, 1.0f, 1.0f), // white color by default
+            Emission = Vector3.zero,
+            Metallic = 0.0f,
+            Smoothness = 0.0f,
+            IOR = 1.0f,
+            RenderMode = 0,
+            AlbedoIdx = -1,
+            EmitIdx = -1,
+            MetallicIdx = -1,
+            NormalIdx = -1,
+            RoughIdx = -1
+        });
+        
+        foreach (var obj in objects)
         {
-            Vector3 d = bmax - bmin;
-            return d.x * d.y + d.y * d.z + d.z * d.x;
-        }
-    }
-    
-    public Triangle[] triangles;
-    public int[] triIndices;
-    public BVHNode[] bnodes;
-    
-    int rootNodeIdx = 0;
-    int nodeUsed = 0;
-    
-    public void BuildBVH()
-    {
-        bnodes = new BVHNode[N];
-        for (int i = 0; i < triangles.Length; i++)
-        {
-            triangles[i].centroid = (triangles[i].v0 + triangles[i].v1 + triangles[i].v2) / 3.0f;
-            triIndices[i] = i;
-        }
-        
-        InitRootBVHNode();
-        Subdivide(rootNodeIdx);
-    }
-    
-    public void InitRootBVHNode()
-    {
-        BVHNode rootNode = bnodes[rootNodeIdx];
-        rootNode.aabbMin = new Vector3(1e30f, 1e30f, 1e30f);
-        rootNode.aabbMax = new Vector3(-1e30f, -1e30f, -1e30f);
-        rootNode.leftFirstIdx = 0;
-        rootNode.numTriangles = triangles.Length;
-        
-        UpdateBounds(0);
-    }
-    
-    public void UpdateBounds(int nodeIdx)
-    {
-        BVHNode node = bnodes[nodeIdx];
-        if (node.numTriangles == 0)
-        {
-            // BVHNode leftNode = bnodes[node.leftFirstIdx];
-            // BVHNode rightNode = bnodes[node.leftFirstIdx + 1];
-            // node.aabbMin = Vector3.Min(leftNode.aabbMin, rightNode.aabbMin);
-            // node.aabbMax = Vector3.Max(leftNode.aabbMax, rightNode.aabbMax);
-            return;
-        }
-        
-        node.aabbMin = new Vector3(1e30f, 1e30f, 1e30f);
-        node.aabbMax = new Vector3(-1e30f, -1e30f, -1e30f);
-        for (int i = node.leftFirstIdx; i < node.numTriangles; i++)
-        {
-            Triangle tri = triangles[triIndices[node.leftFirstIdx + i]];
-            node.aabbMin = Vector3.Min(node.aabbMin, tri.v0);
-            node.aabbMin = Vector3.Min(node.aabbMin, tri.v1);
-            node.aabbMin = Vector3.Min(node.aabbMin, tri.v2);
-            node.aabbMax = Vector3.Max(node.aabbMax, tri.v0);
-            node.aabbMax = Vector3.Max(node.aabbMax, tri.v1);
-            node.aabbMax = Vector3.Max(node.aabbMax, tri.v2);
-        }
-    }
-
-    public void Subdivide(int idx)
-    {
-        BVHNode node = bnodes[idx];
-        
-        
-        // init params
-        int splitAxis = -1;
-        float splitPos = 0.0f;
-        float splitCost = 1e30f;
-        
-        
-        splitCost = FindBestSplitPlane(ref node, ref splitAxis, ref splitPos);
-        
-        float noSplitCost = CaculateNodeCost(ref node);
-        if (splitCost >= noSplitCost)
-        {
-            return;
-        }
-
-        int i = node.leftFirstIdx;
-        int j = node.numTriangles - 1;
-        while (i <= j)
-        {
-            if(triangles[triIndices[i]].centroid[splitAxis] < splitPos)
+            MaterialData material = new MaterialData();
+            Renderer renderer = obj.GetComponent<Renderer>();
+            var mats = renderer.sharedMaterials;
+            int matStartIdx = materials.Count;
+            int matCount = mats.Length;
+            foreach (var mat in mats)
             {
-                i++;
-            }
-            else
-            {
-                int tmp = triIndices[i];
-                triIndices[i] = triIndices[j];
-                triIndices[j] = tmp;
-                j--;
-            }
-        }
-        int leftCount = i - node.leftFirstIdx;
-        if (leftCount == 0 || leftCount == node.numTriangles)
-        {
-            return;
-        }
-        int leftNodeIdx = nodeUsed++;
-        int rightNodeIdx = nodeUsed++;
-        BVHNode leftNode = bnodes[leftNodeIdx];
-        BVHNode rightNode = bnodes[rightNodeIdx];
-        leftNode.leftFirstIdx = node.leftFirstIdx;
-        leftNode.numTriangles = leftCount;
-        rightNode.leftFirstIdx = i;
-        rightNode.numTriangles = node.numTriangles - leftCount;
-        node.leftFirstIdx = leftNodeIdx;
-        node.numTriangles = 0;
-        UpdateBounds(leftNodeIdx);
-        UpdateBounds(rightNodeIdx);
-        //recursively subdivide
-        Subdivide(leftNodeIdx);
-        Subdivide(rightNodeIdx);
-    }
-
-    public float EvaluateSAH(ref BVHNode bnode, int axis, float pos)
-    {
-        if(bnode.numTriangles == 0)
-        {
-            return 1e30f;
-        }
-        
-        AABB leftAABB = new AABB();
-        AABB rightAABB = new AABB();
-        int leftCount = 0;
-        int rightCount = 0;
-        for (int i = 0; i < bnode.numTriangles; i++)
-        {
-            Triangle tri = triangles[triIndices[bnode.leftFirstIdx + i]];
-            if (tri.centroid[axis] < pos)
-            {
-                leftAABB.grow(tri.v0);
-                leftAABB.grow(tri.v1);
-                leftAABB.grow(tri.v2);
-                leftCount++;
-            }
-            else
-            {
-                rightAABB.grow(tri.v0);
-                rightAABB.grow(tri.v1);
-                rightAABB.grow(tri.v2);
-                rightCount++;
-            }
-        }
-        float cost = leftCount * leftAABB.area() + rightCount * rightAABB.area();
-        return cost > 0 ? cost : 1e30f;
-    }
-
-    public struct BIN
-    {
-        public AABB aabb;
-        public int triCount;
-    }
-    
-    public float FindBestSplitPlane(ref BVHNode bnode, ref int axis, ref float splitPos)
-    {
-        float bestCost = 1e30f;
-        if(bnode.numTriangles == 0)
-        {
-            return bestCost;
-        }
-        int binsCount = 7;
-        BIN[] bins = new BIN[binsCount];
-        for (int a = 0; a < 3; a++)
-        {
-            float boundsMin = 1e30f;
-            float boundsMax = -1e30f;
-            for (int i = 0; i < bnode.numTriangles; i++)
-            {
-                Triangle tri = triangles[triIndices[bnode.leftFirstIdx + i]];
-                boundsMin = Mathf.Min(boundsMin, tri.centroid[a]);
-                boundsMax = Mathf.Max(boundsMax, tri.centroid[a]);
-            }
-            if(boundsMax == boundsMin)
-            {
-                continue;
-            }
-            float scale = (binsCount) / (boundsMax - boundsMin);
-            for(int i = 0;i < bnode.numTriangles; i++)
-            {
-                Triangle tri = triangles[triIndices[bnode.leftFirstIdx + i]];
-                int binIdx = Mathf.Min(binsCount - 1, (int)((tri.centroid[a] - boundsMin) * scale));
-                bins[binIdx].aabb.grow(tri.v0);
-                bins[binIdx].aabb.grow(tri.v1);
-                bins[binIdx].aabb.grow(tri.v2);
-                bins[binIdx].triCount++;
-            }
-            
-            float[] leftArea = new float[binsCount - 1];
-            float[] rightArea = new float[binsCount - 1];
-            int[] leftCount = new int[binsCount - 1];
-            int[] rightCount = new int[binsCount - 1];
-            AABB leftAABB = new AABB();
-            AABB rightAABB = new AABB();
-            int leftSum = 0;
-            int rightSum = 0;
-            for (int i = 0; i < binsCount - 1; i++)
-            {
-                leftSum += bins[i].triCount;
-                leftCount[i] = leftSum;
-                leftAABB.grow(bins[i].aabb.bmin);
-                leftArea[i] = leftAABB.area();
-                rightSum += bins[binsCount - 1 - i].triCount;
-                rightCount[binsCount - 2 - i] = rightSum;
-                rightAABB.grow(bins[binsCount - 1 - i].aabb.bmax);
-                rightArea[binsCount - 2 - i] = rightAABB.area();
-            }
-            // calculate cost for each split
-            for (int i = 0; i < binsCount - 1; i++)
-            {
-                float cost = leftArea[i] * leftCount[i] + rightArea[i] * rightCount[i];
-                if (cost < bestCost)
+                int albedoIdx = -1, emitIdx = -1, metallicIdx = -1, normalIdx = -1, roughIdx = -1;
+                if (mat.HasProperty("_MainTex"))
                 {
-                    bestCost = cost;
-                    axis = a;
-                    splitPos = boundsMin + (i + 1) / scale;
+                    albedoIdx = albedoTex.IndexOf((Texture2D)mat.mainTexture);
+                    if (albedoIdx == -1 && mat.mainTexture != null)
+                    {
+                        albedoTex.Add((Texture2D)mat.mainTexture);
+                        albedoIdx = albedoTex.Count - 1;
+                    }
                 }
+
+                if (mat.HasProperty("_EmissionMap"))
+                {
+                    var emitMap = mat.GetTexture("_EmissionMap");
+                    emitIdx = emitTex.IndexOf(emitMap as Texture2D);
+                    if (emitIdx < 0 && emitMap != null)
+                    {
+                        emitIdx = emitTex.Count;
+                        emitTex.Add(emitMap as Texture2D);
+                    }
+                }
+
+                if (mat.HasProperty("_MetallicGlossMap"))
+                {
+                    var metalMap = mat.GetTexture("_MetallicGlossMap");
+                    metallicIdx = metalTex.IndexOf(metalMap as Texture2D);
+                    if (metallicIdx < 0 && metalMap != null)
+                    {
+                        metallicIdx = metalTex.Count;
+                        metalTex.Add(metalMap as Texture2D);
+                    }
+                }
+
+                if (mat.HasProperty("_BumpMap"))
+                {
+                    var normMap = mat.GetTexture("_BumpMap");
+                    normalIdx = normTex.IndexOf(normMap as Texture2D);
+                    if (normalIdx < 0 && normMap != null)
+                    {
+                        normalIdx = normTex.Count;
+                        normTex.Add(normMap as Texture2D);
+                    }
+                }
+
+                if (mat.HasProperty("_SpecGlossMap"))
+                {
+                    var roughMap = mat.GetTexture("_SpecGlossMap"); // assume Autodesk interactive shader
+                    roughIdx = roughTex.IndexOf(roughMap as Texture2D);
+                    if (roughIdx < 0 && roughMap != null)
+                    {
+                        roughIdx = roughTex.Count;
+                        roughTex.Add(roughMap as Texture2D);
+                    }
+                }
+                
+                Color emission = Color.black;
+                if (mat.IsKeywordEnabled("_EMISSION"))
+                {
+                    emission = mat.GetColor("_EmissionColor");
+                }
+                
+                materials.Add(new MaterialData()
+                {
+                    Color = new Vector4(mat.color.r, mat.color.g, mat.color.b, mat.color.a),
+                    Emission = new Vector3(emission.r,emission.g,emission.b),
+                    Metallic = mat.GetFloat("_Metallic"),
+                    Smoothness = mat.GetFloat("_Glossiness"),
+                    IOR = mat.HasProperty("_IOR") ? mat.GetFloat("_IOR") : 1.0f,
+                    RenderMode = mat.HasProperty("_RenderMode") ? mat.GetFloat("_RenderMode") : 0.0f,
+                    AlbedoIdx = albedoIdx,
+                    EmitIdx = emitIdx,
+                    MetallicIdx = metallicIdx,
+                    NormalIdx = normalIdx,
+                    RoughIdx = roughIdx
+                });
             }
         }
-        return bestCost;
     }
 
-    public float CaculateNodeCost(ref BVHNode bnode)
+    private static void BuildMeshData(List<GameObject> objects)
     {
-        if (bnode.numTriangles == 0)
+        foreach (var obj in objects)
         {
-            return 1e30f;
+            Mesh mesh = obj.GetComponent<MeshFilter>().sharedMesh;
+            vertices.AddRange(mesh.vertices.ToList());
+            uvs.AddRange(mesh.uv);
+            normals.AddRange(mesh.normals);
+            tangents.AddRange(mesh.tangents);
+            int vertexStartIdx = vertices.Count;
+            for (int i = 0; i < mesh.subMeshCount; i++)
+            {
+                var subMeshIndices = mesh.GetIndices(i).ToList();
+                
+            }
         }
-        Vector3 e = bnode.aabbMax - bnode.aabbMin;
-        float area = e.x * e.y + e.y * e.z + e.z * e.x;
-        return area * bnode.numTriangles;
     }
 }
