@@ -1,18 +1,50 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using System.Collections.Generic;
 
+// add this script as component of the parent of all sub-objects
 public class SceneObject : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
+    private void OnEnable()
     {
-        
+        foreach(Transform sub in transform)
+        {
+            GameObject obj = sub.gameObject;
+            bool skipped = false;
+            // a valid gameobject should have:
+            // 1. mesh filter (for vertices data)
+            // 2. renderer (for materials)
+            // 3. topology is triangles
+            if (obj.GetComponent<MeshFilter>() != null &&
+                obj.GetComponent<Renderer>() != null)
+            {
+                var mesh = obj.GetComponent<MeshFilter>().sharedMesh;
+                bool valid = true;
+                for (int i = 0; i < mesh.subMeshCount; i++)
+                {
+                    if (mesh.GetTopology(i) != MeshTopology.Triangles)
+                    {
+                        valid = false;
+                        break;
+                    }
+                }
+                if (valid) BVHBuilder.RegisterObject(obj);
+                else skipped = true;
+            }
+            else skipped = true;
+            if (skipped) Debug.Log("Skipped object " + obj.name + " because it has invalid layout");
+        }
     }
 
-    // Update is called once per frame
-    void Update()
+    private void OnDisable()
     {
-        
+        foreach (Transform sub in transform)
+        {
+            GameObject obj = sub.gameObject;
+            if (obj.GetComponent<MeshFilter>() != null &&
+                obj.GetComponent<Renderer>() != null)
+            {
+                BVHBuilder.UnregisterObject(obj);
+            }
+        }
     }
 }

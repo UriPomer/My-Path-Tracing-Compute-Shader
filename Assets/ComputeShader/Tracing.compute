@@ -2,17 +2,6 @@
 
 #include "struct.hlsl"
 
-RWTexture2D<float4> _Result;
-float2 _Resolution;
-float4x4 _CameraToWorld;
-float4x4 _CameraInverseProjection;
-Texture2D<float4> _SkyboxTexture;
-SamplerState sampler_SkyboxTexture;
-float3 _DirectionalLight;
-float4 _DirectionalLightColor;
-
-static const float PI = 3.14159265f;
-
 float sdot(float3 x, float3 y, float f = 1.0f)
 {
     return saturate(dot(x, y) * f);
@@ -23,8 +12,6 @@ float energy(float3 color)
     return dot(color, 1.0f / 3.0f);
 }
 
-float2 _Pixel;
-float _Seed;
 
 float rand()
 {
@@ -32,10 +19,6 @@ float rand()
     _Seed += 1.0f;
     return result;
 }
-
-
-
-RWStructuredBuffer<Sphere> _Spheres;
 
 RayHit HitSphere(Sphere sphere, Ray r)
 {

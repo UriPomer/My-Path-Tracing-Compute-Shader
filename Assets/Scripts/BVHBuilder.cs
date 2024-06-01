@@ -93,7 +93,6 @@ public class BVHBuilder
     public static Texture2DArray RoughnessTextures = null;
     
     
-    
     private static bool objectUpdated = false;
     private static bool objectTransformUpdated = false;
     

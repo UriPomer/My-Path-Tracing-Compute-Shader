@@ -9,11 +9,23 @@ public class Tracing : MonoBehaviour
     private Camera cam;
     private RenderTexture target;
     
+    [Header("Skybox Settings")]
     [SerializeField]
     private Texture skyboxTexture;
+    [SerializeField, Range(0.0f, 10.0f)]
+    float SkyboxIntensity = 1.0f;
     
+    [Header("Light Settings")]
     [SerializeField]
     private Light directionalLight;
+    [SerializeField]
+    Light[] PointLights;
+    
+    
+    private Vector3 directionalLightInfo;
+    private Vector4 directionalLightColorInfo;
+    private int pointLightsCount;
+    private ComputeBuffer pointLightsBuffer;
     
     private List<Sphere> spheres = new List<Sphere>();
     
