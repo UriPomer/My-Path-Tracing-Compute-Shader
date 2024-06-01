@@ -21,28 +21,116 @@ public struct MaterialData
     public static int TypeSize = Marshal.SizeOf(typeof(MaterialData));
 }
 
-public class BVHBuilder : MonoBehaviour
+public struct Primitive
 {
-    public static List<MaterialData> materials = new List<MaterialData>();
-    
+    public Vector3 v0;
+    public Vector3 v1;
+    public Vector3 v2;
+    public Vector3 centroid;
+}
+public struct BVHNode
+{
+    public Vector3 aabbMin;
+    public Vector3 aabbMax;
+    public int leftFirstIdx;    //left child or first triangle index
+    public int numTriangles;
+}
+
+public struct AABB
+{
+    public Vector3 bmin;
+    public Vector3 bmax;
+        
+    public void grow(Vector3 p)
+    {
+        bmin = Vector3.Min(bmin, p);
+        bmax = Vector3.Max(bmax, p);
+    }
+
+    public float area()
+    {
+        Vector3 d = bmax - bmin;
+        return d.x * d.y + d.y * d.z + d.z * d.x;
+    }
+}
+
+public class BVHBuilder
+{
+    // object data
+    private static List<GameObject> objects = new List<GameObject>();
+    // material data
+    private static List<MaterialData> materials = new List<MaterialData>();
     // Mesh data
     private static List<Vector3> vertices = new List<Vector3>();
     private static List<Vector2> uvs = new List<Vector2>();
     private static List<Vector3> normals = new List<Vector3>();
     private static List<Vector4> tangents = new List<Vector4>();
+    // Acceleration structure
+    private static List<BLASNode> bnodes = new List<BLASNode>();
+    private static List<TLASUpperNode> tnodes = new List<TLASUpperNode>();
+    private static List<TLASRawNode> tnodesRaw = new List<TLASRawNode>();
+    
+    // transform data, size of objects * 2, contains local to world and inverse matrix
+    private static List<Matrix4x4> transforms = new List<Matrix4x4>();
+    
+    // algorithm data
+    private static List<int> indices = new List<int>();
+    
+    public static ComputeBuffer VertexBuffer;
+    public static ComputeBuffer UVBuffer;
+    public static ComputeBuffer IndexBuffer;
+    public static ComputeBuffer NormalBuffer;
+    public static ComputeBuffer TangentBuffer;
+    public static ComputeBuffer MaterialBuffer;
+    public static ComputeBuffer BLASBuffer;
+    public static ComputeBuffer TLASBuffer;
+    public static ComputeBuffer TLASRawBuffer;
+    public static ComputeBuffer TransformBuffer;
+    public static Texture2DArray AlbedoTextures = null;
+    public static Texture2DArray EmissionTextures = null;
+    public static Texture2DArray MetallicTextures = null;
+    public static Texture2DArray NormalTextures = null;
+    public static Texture2DArray RoughnessTextures = null;
     
     
-    const int N = 1000;
-    public static Primitive[] triangles;
-    public static int[] triIndices;
-    public static BVHNode[] bnodes;
     
-    static int rootNodeIdx = 0;
-    static int nodeUsed = 0;
+    private static bool objectUpdated = false;
+    private static bool objectTransformUpdated = false;
     
-    public static List<GameObject> GetObjectsCount()
+    public static void RegisterObject(GameObject o)
     {
-        return ObjectManager.GetObjects();
+        objects.Add(o);
+        objectUpdated = true;
+        objectTransformUpdated = true;
+    }
+
+    public static void UnregisterObject(GameObject o)
+    {
+        objects.Remove(o);
+        objectUpdated = true;
+        objectTransformUpdated = true;
+    }
+    
+    public static bool Validate()
+    {
+        // check if object data is updated
+        foreach (GameObject obj in objects)
+        {
+            if(obj.transform.hasChanged)
+            {
+                objectTransformUpdated = true;
+                obj.transform.hasChanged = false;
+                break;
+            }
+            if (obj.transform.parent.transform.hasChanged)
+            {
+                objectTransformUpdated = true;
+                obj.transform.parent.transform.hasChanged = false;
+                break;
+            }
+        }
+
+        return BuildBVH() || LoadTransforms();
     }
     
     private static void BuildMaterialData(List<GameObject> objects)
@@ -154,6 +242,17 @@ public class BVHBuilder : MonoBehaviour
                     RoughIdx = roughIdx
                 });
             }
+            // create texture 2d array
+            if (AlbedoTextures != null) UnityEngine.Object.Destroy(AlbedoTextures);
+            if (EmissionTextures != null) UnityEngine.Object.Destroy(EmissionTextures);
+            if (MetallicTextures != null) UnityEngine.Object.Destroy(MetallicTextures);
+            if (NormalTextures != null) UnityEngine.Object.Destroy(NormalTextures);
+            if (RoughnessTextures != null) UnityEngine.Object.Destroy(RoughnessTextures);
+            AlbedoTextures = CreateTextureArray(ref albedoTex);
+            EmissionTextures = CreateTextureArray(ref emitTex);
+            MetallicTextures = CreateTextureArray(ref metalTex);
+            NormalTextures = CreateTextureArray(ref normTex);
+            RoughnessTextures = CreateTextureArray(ref roughTex);
         }
     }
 
@@ -162,16 +261,193 @@ public class BVHBuilder : MonoBehaviour
         foreach (var obj in objects)
         {
             Mesh mesh = obj.GetComponent<MeshFilter>().sharedMesh;
-            vertices.AddRange(mesh.vertices.ToList());
-            uvs.AddRange(mesh.uv);
-            normals.AddRange(mesh.normals);
-            tangents.AddRange(mesh.tangents);
-            int vertexStartIdx = vertices.Count;
+            var meshVertices = mesh.vertices.ToList();
+            var meshNormals = mesh.normals;
+            var meshUVs = mesh.uv;
+            var meshTangents = mesh.tangents;
+            int vertexStart = vertices.Count;
+            int matStart = materials.Count;
+            int matCount = obj.GetComponent<Renderer>().sharedMaterials.Length;
+            int objectIdx = objects.IndexOf(obj);
             for (int i = 0; i < mesh.subMeshCount; i++)
             {
                 var subMeshIndices = mesh.GetIndices(i).ToList();
-                
+                BVH blasTree = new BVH(meshVertices, subMeshIndices);
+                blasTree.AddSubMeshToBLAS(ref indices, ref bnodes, ref tnodesRaw, subMeshIndices, vertexStart, i < matCount ? i + matStart : 0, objectIdx);
+            }
+            vertices.AddRange(meshVertices);
+            normals.AddRange(meshNormals);
+            uvs.AddRange(meshUVs);
+            tangents.AddRange(meshTangents);
+            
+            // if not UV is used, insert empty one
+            if (uvs.Count <= 0) uvs.Add(Vector2.zero);
+        }
+    }
+    
+    private static bool BuildBVH()
+    {
+        if (!objectUpdated)
+            return false;
+        
+        BuildMaterialData(objects);
+        BuildMeshData(objects);
+        
+        // build TLAS bvh
+        ReloadTLAS();
+        
+        SetBuffers();
+        
+        objectUpdated = false;
+        return true;
+    }
+
+    private static bool LoadTransforms()
+    {
+        if (!objectTransformUpdated) return false;
+
+        transforms.Clear();
+        
+        
+        // 突然发现，由于每次都是按一定顺序遍历所有物体，所以这些数组的索引都是一一对应的
+        foreach(var obj in objects)
+        {
+            transforms.Add(obj.transform.localToWorldMatrix);
+            transforms.Add(obj.transform.worldToLocalMatrix);
+        }
+
+        SetBuffer(ref TransformBuffer, transforms, sizeof(float) * 4 * 4);
+
+        objectTransformUpdated = false;
+        return true;
+    }
+
+    private static void SetBuffers()
+    {
+        SetBuffer(ref IndexBuffer, indices, sizeof(int));
+        SetBuffer(ref VertexBuffer, vertices, sizeof(float) * 3);
+        SetBuffer(ref UVBuffer, uvs, sizeof(float) * 2);
+        SetBuffer(ref NormalBuffer, normals, sizeof(float) * 3);
+        SetBuffer(ref TangentBuffer, tangents, sizeof(float) * 4);
+        SetBuffer(ref MaterialBuffer, materials, MaterialData.TypeSize);
+        SetBuffer(ref BLASBuffer, bnodes, BLASNode.TypeSize);
+    }
+
+    public static void ReloadTLAS()
+    {
+        if (tnodesRaw.Count <= 0) return;
+        if (transforms.Count <= 0) LoadTransforms();
+        tnodes.Clear();
+        BVH tlasTree = new BVH(tnodesRaw, transforms);
+        tlasTree.FlattenTLAS(ref tnodesRaw, ref tnodes);
+        SetBuffer(ref TLASBuffer, tnodes, TLASUpperNode.TypeSize);
+        SetBuffer(ref TLASRawBuffer, tnodesRaw, TLASRawNode.TypeSize);
+    }
+
+    private static void SetBuffer<T>(ref ComputeBuffer buffer, List<T> data, int stride) where T : struct
+    {
+        if(buffer != null) buffer.Release();
+        if (data.Count == 0) return;
+        buffer = new ComputeBuffer(data.Count, stride);
+        buffer.SetData(data);
+    }
+
+    public static void ReloadMaterials()
+    {
+        int matIdx = 1;
+        // get info from each object
+        foreach (var obj in objects)
+        {
+            // load materials
+            var meshMats = obj.GetComponent<Renderer>().sharedMaterials;
+            foreach (var mat in meshMats)
+            {
+                Color emission = mat.IsKeywordEnabled("_EMISSION") ? mat.GetColor("_EmissionColor") : Color.black;
+                materials[matIdx] = new MaterialData()
+                {
+                    Color = new Vector4(mat.color.r, mat.color.g, mat.color.b, mat.color.a),
+                    Emission = new Vector3(emission.r, emission.g, emission.b),
+                    Metallic = mat.GetFloat("_Metallic"),
+                    Smoothness = mat.GetFloat("_Glossiness"),
+                    IOR = mat.HasProperty("_IOR") ? mat.GetFloat("_IOR") : 1.0f,
+                    RenderMode = mat.GetFloat("_Mode"),
+                    AlbedoIdx = materials[matIdx].AlbedoIdx,
+                    EmitIdx = materials[matIdx].EmitIdx,
+                    MetallicIdx = materials[matIdx].MetallicIdx,
+                    NormalIdx = materials[matIdx].NormalIdx,
+                    RoughIdx = materials[matIdx].RoughIdx,
+                };
+                matIdx++;
             }
         }
+        SetBuffer(ref MaterialBuffer, materials, MaterialData.TypeSize);
+    }
+    
+    public static void Destroy()
+    {
+        if (IndexBuffer != null) IndexBuffer.Release();
+        if (VertexBuffer != null) VertexBuffer.Release();
+        if (NormalBuffer != null) NormalBuffer.Release();
+        if (TangentBuffer != null) TangentBuffer.Release();
+        if (UVBuffer != null) UVBuffer.Release();
+        if (MaterialBuffer != null) MaterialBuffer.Release();
+        if (TLASBuffer != null) TLASBuffer.Release();
+        if (TLASRawBuffer != null) TLASRawBuffer.Release();
+        if (BLASBuffer != null) BLASBuffer.Release();
+        if (TransformBuffer != null) TransformBuffer.Release();
+        if (AlbedoTextures != null) UnityEngine.Object.Destroy(AlbedoTextures);
+        if (EmissionTextures != null) UnityEngine.Object.Destroy(EmissionTextures);
+        if (MetallicTextures != null) UnityEngine.Object.Destroy(MetallicTextures);
+        if (NormalTextures != null) UnityEngine.Object.Destroy(NormalTextures);
+        if (RoughnessTextures != null) UnityEngine.Object.Destroy(RoughnessTextures);
+    }
+    
+    private static Texture2DArray CreateTextureArray(ref List<Texture2D> textures)
+    {
+        int texWidth = 1, texHeight = 1;
+        foreach (Texture tex in textures)
+        {
+            texWidth = Mathf.Max(texWidth, tex.width);
+            texHeight = Mathf.Max(texHeight, tex.height);
+        }
+        int maxDim = GetMaxDimension(textures.Count, Mathf.Max(texWidth, texHeight));
+        texWidth = Mathf.Min(texWidth, maxDim);
+        texHeight = Mathf.Min(texHeight, maxDim);
+        var newTexture = new Texture2DArray(
+            texWidth, texHeight, Mathf.Max(1, textures.Count),
+            TextureFormat.ARGB32, true, false
+        );
+        newTexture.SetPixels(Enumerable.Repeat(Color.white, texWidth * texHeight).ToArray(), 0, 0);
+        RenderTexture rt = new RenderTexture(texWidth, texHeight, 1, RenderTextureFormat.ARGB32);
+        Texture2D tmp = new Texture2D(texWidth, texHeight, TextureFormat.ARGB32, false);
+        for (int i = 0; i < textures.Count; i++)
+        {
+            RenderTexture.active = rt;
+            Graphics.Blit(textures[i], rt);
+            tmp.ReadPixels(new Rect(0, 0, texWidth, texHeight), 0, 0);
+            tmp.Apply();
+            newTexture.SetPixels(tmp.GetPixels(0), i, 0);
+        }
+        newTexture.Apply();
+        RenderTexture.active = null;
+        UnityEngine.Object.Destroy(rt);
+        UnityEngine.Object.Destroy(tmp);
+        return newTexture;
+    }
+    
+    private static int GetMaxDimension(int count, int dim)
+    {
+        // 看上去是用于纹理压缩
+        if (dim >= 2048)
+        {
+            if (count <= 16) return 2048;
+            else return 1024;
+        }
+        else if (dim >= 1024)
+        {
+            if (count <= 48) return 1024;
+            else return 512;
+        }
+        else return dim;
     }
 }

@@ -2,39 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public struct Primitive
-{
-    public Vector3 v0;
-    public Vector3 v1;
-    public Vector3 v2;
-    public Vector3 centroid;
-}
-public struct BVHNode
-{
-    public Vector3 aabbMin;
-    public Vector3 aabbMax;
-    public int leftFirstIdx;    //left child or first triangle index
-    public int numTriangles;
-}
-   
-public struct AABB
-{
-    public Vector3 bmin;
-    public Vector3 bmax;
-        
-    public void grow(Vector3 p)
-    {
-        bmin = Vector3.Min(bmin, p);
-        bmax = Vector3.Max(bmax, p);
-    }
-
-    public float area()
-    {
-        Vector3 d = bmax - bmin;
-        return d.x * d.y + d.y * d.z + d.z * d.x;
-    }
-}
-
 public struct BLASNode
 {
     public Vector3 BoundMax;
