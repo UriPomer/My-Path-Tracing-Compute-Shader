@@ -33,7 +33,7 @@ public class BVHBuilder : MonoBehaviour
     
     
     const int N = 1000;
-    public static Triangle[] triangles;
+    public static Primitive[] triangles;
     public static int[] triIndices;
     public static BVHNode[] bnodes;
     
