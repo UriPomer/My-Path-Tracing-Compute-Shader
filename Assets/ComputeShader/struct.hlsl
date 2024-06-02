@@ -41,10 +41,12 @@ Texture2D<float4> _SkyboxTexture;
 SamplerState sampler_SkyboxTexture;
 float3 _DirectionalLight;
 float4 _DirectionalLightColor;
+StructuredBuffer<float4> _PointLights;
+int _PointLightsCount;
 
 static const float PI = 3.14159265f;
 #define PI_TWO          6.28318530717958623198
-#define LUM             0.33333333333333333333
+const float3 LUM = float3(0.2126, 0.7152, 0.0722);
 
 
 float2 _Pixel;
