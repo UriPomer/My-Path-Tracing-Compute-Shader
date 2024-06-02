@@ -13,12 +13,6 @@ float energy(float3 color)
 }
 
 
-float rand()
-{
-    float result = frac(sin(_Seed / 100.0f * dot(_Pixel, float2(12.9898f, 78.233f))) * 43758.5453f); // Fraction part
-    _Seed += 1.0f;
-    return result;
-}
 
 RayHit HitSphere(Sphere sphere, Ray r)
 {
@@ -46,20 +40,20 @@ RayHit HitSphere(Sphere sphere, Ray r)
     {
         hit.position = r.origin + t0 * r.dir;
         hit.normal = normalize(hit.position - center);
-        hit.albedo = sphere.albedo;
-        hit.specular = sphere.specular;
-        hit.smoothness = sphere.smoothness;
-        hit.emission = sphere.emission;
+        hit.material.albedo = sphere.albedo;
+        hit.material.metallic = sphere.specular;
+        hit.material.roughness = sphere.smoothness;
+        hit.material.emission = sphere.emission;
         hit.distance = t0;
     }
     else if (t1 > 0.0 && t1 < hit.distance)
     {
         hit.position = r.origin + t1 * r.dir;
         hit.normal = normalize(hit.position - center);
-        hit.albedo = sphere.albedo;
-        hit.specular = sphere.specular;
-        hit.smoothness = sphere.smoothness;
-        hit.emission = sphere.emission;
+        hit.material.albedo = sphere.albedo;
+        hit.material.metallic = sphere.specular;
+        hit.material.roughness = sphere.smoothness;
+        hit.material.emission = sphere.emission;
         hit.distance = t1;
     }
 
@@ -152,34 +146,34 @@ float3 Shade(inout Ray ray, RayHit hit)
     if(hit.distance < 1.#INF)
     {
         // Calculate chances of diffuse and specular reflection
-        hit.albedo = min(1.0f - hit.specular, hit.albedo);
-        float specChance = energy(hit.specular);
-        float diffChance = energy(hit.albedo);
+        hit.material.albedo = min(1.0f - hit.material.metallic, hit.material.albedo);
+        float specChance = energy(hit.material.metallic);
+        float diffChance = energy(hit.material.albedo);
 
         float roulette = rand();
         if(roulette < specChance)
         {
             // Specular reflection
             ray.origin = hit.position + hit.normal * 0.001f; // Offset the origin slightly to avoid self-intersection
-            float alpha = SmoothnessToPhongAlpha(hit.smoothness);
+            float alpha = SmoothnessToPhongAlpha(hit.material.roughness);
             float3 reflected = reflect(ray.dir, hit.normal);
             ray.dir = SampleReflectionDirectionSphere(reflected, alpha);
             float f = (alpha + 2) / (alpha + 1);
-            ray.energy *= (1.0f / specChance) * hit.specular * sdot(hit.normal, ray.dir, f);
+            ray.energy *= (1.0f / specChance) * hit.material.metallic * sdot(hit.normal, ray.dir, f);
         }
         else if(diffChance > 0 && roulette < specChance + diffChance)
         {
             // Diffuse reflection
             ray.origin = hit.position + hit.normal * 0.001f;
             ray.dir = SampleReflectionDirectionSphere(hit.normal, 1.0f);
-            ray.energy *= (1.0f / diffChance) * hit.albedo;
+            ray.energy *= (1.0f / diffChance) * hit.material.albedo;
         }
         else
         {
             ray.energy = 0.0f;
         }
 
-        return hit.emission;
+        return hit.material.emission;
     }
     else
     {
