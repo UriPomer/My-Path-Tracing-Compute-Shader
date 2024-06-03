@@ -21,28 +21,31 @@ public class Tracing : MonoBehaviour
     [SerializeField]
     Light[] PointLights;
     
+    [SerializeField, Range(2, 20)]
+    int TraceDepth = 5;
+    
     
     private Vector3 directionalLightInfo;
     private Vector4 directionalLightColorInfo;
+    // angles in radians
+    private float directionalLightYaw = 0.0f;
+    private float directionalLightPitch = 0.0f;
+    // point lights
     private int pointLightsCount;
     private ComputeBuffer pointLightsBuffer;
-    
-    private List<Sphere> spheres = new List<Sphere>();
-    
-    private bool isInited = false;
 
+    private bool _isInited = false;
+   
     private void Start()
     {
         cam = GetComponent<Camera>();
-        spheres = ObjectManager.GetSpheres();
-        isInited = true;
     }
 
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-        if(isInited == false)
-            return;
-        Render(destination);
+        BVHBuilder.Validate();
+
+		Render(destination);
     }
 
     private void Render(RenderTexture destination)
@@ -57,10 +60,6 @@ public class Tracing : MonoBehaviour
             target.enableRandomWrite = true;
             target.Create();
         }
-        spheres = ObjectManager.GetSpheres();
-        ComputeBuffer sphereBuffer = new ComputeBuffer(spheres.Count, Marshal.SizeOf(typeof(Sphere)));
-        sphereBuffer.SetData(spheres);
-        tracingShader.SetBuffer(kernelID, "_Spheres", sphereBuffer);
         
         tracingShader.SetVector("_DirectionalLight", directionalLight.transform.forward);
         tracingShader.SetVector("_DirectionalLightColor", directionalLight.color * directionalLight.intensity);
@@ -70,13 +69,28 @@ public class Tracing : MonoBehaviour
         tracingShader.SetMatrix("_CameraToWorld", cam.cameraToWorldMatrix);
         tracingShader.SetMatrix("_CameraInverseProjection", cam.projectionMatrix.inverse);
         tracingShader.SetTexture(kernelID, "_SkyboxTexture", skyboxTexture);
+        tracingShader.SetInt("_PointLightsCount", 0);
+
+		if (BVHBuilder.VertexBuffer != null) tracingShader.SetBuffer(0, "_Vertices", BVHBuilder.VertexBuffer);
+        if (BVHBuilder.IndexBuffer != null) tracingShader.SetBuffer(0, "_Indices", BVHBuilder.IndexBuffer);
+        if (BVHBuilder.NormalBuffer != null) tracingShader.SetBuffer(0, "_Normals", BVHBuilder.NormalBuffer);
+        if (BVHBuilder.TangentBuffer != null) tracingShader.SetBuffer(0, "_Tangents", BVHBuilder.TangentBuffer);
+        if (BVHBuilder.UVBuffer != null) tracingShader.SetBuffer(0, "_UVs", BVHBuilder.UVBuffer);
+        if (BVHBuilder.MaterialBuffer != null) tracingShader.SetBuffer(0, "_Materials", BVHBuilder.MaterialBuffer);
+        if (BVHBuilder.TLASBuffer != null) tracingShader.SetBuffer(0, "_TNodes", BVHBuilder.TLASBuffer);
+        if (BVHBuilder.TLASRawBuffer != null) tracingShader.SetBuffer(0, "_TNodesRaw", BVHBuilder.TLASRawBuffer);
+        if (BVHBuilder.BLASBuffer != null) tracingShader.SetBuffer(0, "_BNodes", BVHBuilder.BLASBuffer);
+        if (BVHBuilder.TransformBuffer != null) tracingShader.SetBuffer(0, "_Transforms", BVHBuilder.TransformBuffer);
+        if (BVHBuilder.AlbedoTextures != null) tracingShader.SetTexture(0, "_AlbedoTextures", BVHBuilder.AlbedoTextures);
+        if (BVHBuilder.EmissionTextures != null) tracingShader.SetTexture(0, "_EmitTextures", BVHBuilder.EmissionTextures);
+        if (BVHBuilder.MetallicTextures != null) tracingShader.SetTexture(0, "_MetallicTextures", BVHBuilder.MetallicTextures);
+        if (BVHBuilder.NormalTextures != null) tracingShader.SetTexture(0, "_NormalTextures", BVHBuilder.NormalTextures);
+        if (BVHBuilder.RoughnessTextures != null) tracingShader.SetTexture(0, "_RoughnessTextures", BVHBuilder.RoughnessTextures);
 
         var threadGroupsX = Mathf.CeilToInt(Screen.width / 8.0f);
         var threadGroupsY = Mathf.CeilToInt(Screen.height / 8.0f);
         tracingShader.Dispatch(kernelID, threadGroupsX, threadGroupsY, 1);
-        
-        if(sphereBuffer != null)
-            sphereBuffer.Release();
+
         
         Graphics.Blit(target, destination);
     }
@@ -88,4 +102,6 @@ public class Tracing : MonoBehaviour
             target.Release();
         }
     }
+    
+    
 }

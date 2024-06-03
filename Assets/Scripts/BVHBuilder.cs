@@ -158,7 +158,6 @@ public class BVHBuilder
         
         foreach (var obj in objects)
         {
-            MaterialData material = new MaterialData();
             Renderer renderer = obj.GetComponent<Renderer>();
             var mats = renderer.sharedMaterials;
             int matStartIdx = materials.Count;

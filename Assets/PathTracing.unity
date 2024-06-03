@@ -226,6 +226,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 103934240}
+  - component: {fileID: 103934241}
   m_Layer: 0
   m_Name: Spheres
   m_TagString: Untagged
@@ -255,6 +256,18 @@ Transform:
   - {fileID: 700741928}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &103934241
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 103934239}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ce8d4f1afa97f543beea6c6fcad4d81, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &158310700
 GameObject:
   m_ObjectHideFlags: 0
@@ -407,7 +420,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   tracingShader: {fileID: 7200000, guid: f729f9caa1fdb5140afe66433bd74ff9, type: 3}
   skyboxTexture: {fileID: 2800000, guid: 4a55f77b0c2800047b1d1f32ca46dff5, type: 3}
+  SkyboxIntensity: 1
   directionalLight: {fileID: 59273704}
+  PointLights: []
+  TraceDepth: 5
 --- !u!114 &296955525
 MonoBehaviour:
   m_ObjectHideFlags: 0

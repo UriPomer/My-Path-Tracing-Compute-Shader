@@ -358,6 +358,7 @@ public class BVH
 
         if (primitiveInfoCount <= 2) // 面片数量太少，直接创建叶子节点
         {
+            Debug.Log(primitiveInfoCount);
             primitiveInfos.Sort(start, end, Comparer<PrimitiveInfoClass>.Create((x, y) =>
             {
                 int dim = x.Bounds.MaxDimension();
