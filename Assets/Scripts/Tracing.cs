@@ -33,9 +33,7 @@ public class Tracing : MonoBehaviour
     // point lights
     private int pointLightsCount;
     private ComputeBuffer pointLightsBuffer;
-
-    private bool _isInited = false;
-   
+    
     private void Start()
     {
         cam = GetComponent<Camera>();
@@ -45,7 +43,7 @@ public class Tracing : MonoBehaviour
     {
         BVHBuilder.Validate();
 
-		Render(destination);
+        Render(destination);
     }
 
     private void Render(RenderTexture destination)

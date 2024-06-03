@@ -21,39 +21,6 @@ public struct MaterialData
     public static int TypeSize = Marshal.SizeOf(typeof(MaterialData));
 }
 
-public struct Primitive
-{
-    public Vector3 v0;
-    public Vector3 v1;
-    public Vector3 v2;
-    public Vector3 centroid;
-}
-public struct BVHNode
-{
-    public Vector3 aabbMin;
-    public Vector3 aabbMax;
-    public int leftFirstIdx;    //left child or first triangle index
-    public int numTriangles;
-}
-
-public struct AABB
-{
-    public Vector3 bmin;
-    public Vector3 bmax;
-        
-    public void grow(Vector3 p)
-    {
-        bmin = Vector3.Min(bmin, p);
-        bmax = Vector3.Max(bmax, p);
-    }
-
-    public float area()
-    {
-        Vector3 d = bmax - bmin;
-        return d.x * d.y + d.y * d.z + d.z * d.x;
-    }
-}
-
 public class BVHBuilder
 {
     // object data
@@ -168,7 +135,7 @@ public class BVHBuilder
                 if (mat.HasProperty("_MainTex"))
                 {
                     albedoIdx = albedoTex.IndexOf((Texture2D)mat.mainTexture);
-                    if (albedoIdx == -1 && mat.mainTexture != null)
+                    if (albedoIdx < 0 && mat.mainTexture != null)
                     {
                         albedoTex.Add((Texture2D)mat.mainTexture);
                         albedoIdx = albedoTex.Count - 1;
@@ -270,7 +237,8 @@ public class BVHBuilder
             for (int i = 0; i < mesh.subMeshCount; i++)
             {
                 var subMeshIndices = mesh.GetIndices(i).ToList();
-                BVH blasTree = new BVH(meshVertices, subMeshIndices);
+                BVH blasTree = new BVH(meshVertices, subMeshIndices);   //这个对象创建之后就没有用了，数据存储在下面的ref的参数里
+                Debug.Log("aaa");
                 blasTree.AddSubMeshToBLAS(ref indices, ref bnodes, ref tnodesRaw, subMeshIndices, vertexStart, i < matCount ? i + matStart : 0, objectIdx);
             }
             vertices.AddRange(meshVertices);

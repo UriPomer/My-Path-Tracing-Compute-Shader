@@ -41,34 +41,34 @@ public struct TLASUpperNode
     public static int TypeSize = sizeof(float)*3*2+sizeof(int)*3;
 }
 
-public class AABBClass
+public class AABB
 {
     public Vector3 min;
     public Vector3 max;
     public Vector3 extent;
 
-    public AABBClass()
+    public AABB()
     {
         min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
         max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
         extent = max - min;
     }
 
-    public AABBClass(Vector3 min, Vector3 max)
+    public AABB(Vector3 min, Vector3 max)
     {
         this.min = Vector3.Min(min, max);
         this.max = Vector3.Max(min, max);
         extent = this.max - this.min;
     }
 
-    public AABBClass(Vector3 v0, Vector3 v1, Vector3 v2)
+    public AABB(Vector3 v0, Vector3 v1, Vector3 v2)
     {
         min = Vector3.Min(v0, Vector3.Min(v1, v2));
         max = Vector3.Max(v0, Vector3.Max(v1, v2));
         extent = max - min;
     }
 
-    public void Extend(AABBClass volume)
+    public void Extend(AABB volume)
     {
         min = Vector3.Min(volume.min, min);
         max = Vector3.Max(volume.max, max);
@@ -95,9 +95,9 @@ public class AABBClass
         return result;
     }
 
-    public static AABBClass Combine(AABBClass v1, AABBClass v2)
+    public static AABB Combine(AABB v1, AABB v2)
     {
-        AABBClass result = v1.Copy();
+        AABB result = v1.Copy();
         result.Extend(v2);
         return result;
     }
@@ -120,9 +120,9 @@ public class AABBClass
         );
     }
 
-    public AABBClass Copy()
+    public AABB Copy()
     {
-        return new AABBClass(min, max);
+        return new AABB(min, max);
     }
 }
 
@@ -133,14 +133,14 @@ public class BVH
     public class SAHBucket
     {
         public int Count = 0;   //面片数量
-        public AABBClass Bounds = new AABBClass();  //包围盒
+        public AABB Bounds = new AABB();  //包围盒
     }
 
-    public class BVHNodeClass
+    public class BVHNode
     {
-        public AABBClass Bounds;
-        public BVHNodeClass LeftChild;
-        public BVHNodeClass RightChild;
+        public AABB Bounds;
+        public BVHNode LeftChild;
+        public BVHNode RightChild;
         public int SplitAxis;
         public int PrimitiveStartIdx;
         public int PrimitiveEndIdx;
@@ -150,9 +150,9 @@ public class BVH
             return (LeftChild == null) && (RightChild == null);
         }
 
-        public static BVHNodeClass CreateLeaf(int start, int count, AABBClass bounding)
+        public static BVHNode CreateLeaf(int start, int count, AABB bounding)
         {
-            BVHNodeClass node = new BVHNodeClass
+            BVHNode node = new BVHNode
             {
                 Bounds = bounding,
                 LeftChild = null,
@@ -164,11 +164,11 @@ public class BVH
             return node;
         }
 
-        public static BVHNodeClass CreateParent(int splitAxis, BVHNodeClass nodeLeft, BVHNodeClass nodeRight)
+        public static BVHNode CreateParent(int splitAxis, BVHNode nodeLeft, BVHNode nodeRight)
         {
-            BVHNodeClass node = new BVHNodeClass
+            BVHNode node = new BVHNode
             {
-                Bounds = AABBClass.Combine(nodeLeft.Bounds, nodeRight.Bounds),
+                Bounds = AABB.Combine(nodeLeft.Bounds, nodeRight.Bounds),
                 LeftChild = nodeLeft,
                 RightChild = nodeRight,
                 SplitAxis = splitAxis,
@@ -180,16 +180,16 @@ public class BVH
     }
     
     // 只有AABB和中心点信息，而没有顶点信息
-    public class PrimitiveInfoClass
+    public class PrimitiveInfo
     {
-        public AABBClass Bounds;
+        public AABB Bounds;
         public Vector3 Center;
         public int PrimitiveIdx;
     }
 
 
     public List<int> OrderedPrimitiveIndices = new List<int>();
-    public BVHNodeClass BVHRoot = null;
+    public BVHNode BVHRoot = null;
 
     public void AddSubMeshToBLAS(ref List<int> indices, ref List<BLASNode> bnodes,
         ref List<TLASRawNode> tnodesRaw, List<int> subindices,
@@ -205,7 +205,7 @@ public class BVH
             indices.Add(subindices[primitiveIdx * 3 + 2] + verticesIdxOffset);
         }
 
-        Queue<BVHNodeClass> nodes = new Queue<BVHNodeClass>();
+        Queue<BVHNode> nodes = new Queue<BVHNode>();
         nodes.Enqueue(BVHRoot);
 
         while (nodes.Count > 0)
@@ -218,7 +218,7 @@ public class BVH
                 // node.PrimitiveStartIdx >= 0 说明是叶子节点
                 PrimitiveStartIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveStartIdx + primitiveCount : -1,
                 PrimitiveEndIdx = node.PrimitiveEndIdx >= 0 ? node.PrimitiveEndIdx + primitiveCount : -1,
-                MaterialIdx = node.PrimitiveStartIdx >= 0 ? materialIdx : -1,
+                MaterialIdx = node.PrimitiveStartIdx >= 0 ? materialIdx : 0,
                 ChildIdx = node.PrimitiveEndIdx >= 0 ? -1 : nodes.Count + bnodesCount + 1
             });
             if (node.LeftChild != null) nodes.Enqueue(node.LeftChild);
@@ -243,7 +243,7 @@ public class BVH
         }
 
         rawNodes = orderedRawNodes;
-        Queue<BVHNodeClass> nodes = new();
+        Queue<BVHNode> nodes = new();
         nodes.Enqueue(BVHRoot);
         while (nodes.Count > 0)
         {
@@ -263,14 +263,14 @@ public class BVH
     
     // 将顶点和顶点对应的索引转换为PrimitiveInfo，存储AABB和中心点信息
     // 此处生成的PrimitiveInfo的PrimitiveIdx与顶点的索引的对应关系是，PrimitiveIdx = 顶点索引 / 3 取整
-    private List<PrimitiveInfoClass> createPrimitiveInfo(List<Vector3> vertices, List<int> indices)
+    private List<PrimitiveInfo> createPrimitiveInfo(List<Vector3> vertices, List<int> indices)
     {
-        List<PrimitiveInfoClass> infos = new();
+        List<PrimitiveInfo> infos = new();
         for (int i = 0; i < indices.Count; i += 3)
         {
-            infos.Add(new PrimitiveInfoClass
+            infos.Add(new PrimitiveInfo
             {
-                Bounds = new AABBClass(
+                Bounds = new AABB(
                     vertices[indices[i]],
                     vertices[indices[i + 1]],
                     vertices[indices[i + 2]]
@@ -284,16 +284,16 @@ public class BVH
     }
     
     // rawNodes 含有 AABB 和 TransformIdx 信息，transforms 为每个Transform的矩阵
-    private List<PrimitiveInfoClass> createPrimitiveInfo(List<TLASRawNode> rawNodes, List<Matrix4x4> transforms)
+    private List<PrimitiveInfo> createPrimitiveInfo(List<TLASRawNode> rawNodes, List<Matrix4x4> transforms)
     {
-        List<PrimitiveInfoClass> infos = new();
+        List<PrimitiveInfo> infos = new();
         for (int i = 0; i < rawNodes.Count; i++)
         {
             var node = rawNodes[i];
-            infos.Add(new PrimitiveInfoClass
+            infos.Add(new PrimitiveInfo
             {
                 // 这里的乘以2是因为每个Transform有两个矩阵，一个是localToWorld，一个是worldToLocal，这里的transform是localToWorld
-                Bounds = new AABBClass(transforms[node.TransformIdx * 2].MultiplyPoint3x4(node.BoundMin),
+                Bounds = new AABB(transforms[node.TransformIdx * 2].MultiplyPoint3x4(node.BoundMin),
                     transforms[node.TransformIdx * 2].MultiplyPoint3x4(node.BoundMax)),
                 PrimitiveIdx = i
             });
@@ -305,19 +305,19 @@ public class BVH
 
     public BVH(List<Vector3> vertices, List<int> indices)
     {
-        List<PrimitiveInfoClass> primitiveInfos = createPrimitiveInfo(vertices, indices);
+        List<PrimitiveInfo> primitiveInfos = createPrimitiveInfo(vertices, indices);
         BVHRoot = Build(primitiveInfos, 0, primitiveInfos.Count);
     }
 
     public BVH(List<TLASRawNode> rawNodes, List<Matrix4x4> transforms)
     {
-        List<PrimitiveInfoClass> primitiveInfos = createPrimitiveInfo(rawNodes, transforms);
+        List<PrimitiveInfo> primitiveInfos = createPrimitiveInfo(rawNodes, transforms);
         BVHRoot = Build(primitiveInfos, 0, primitiveInfos.Count);
     }
 
-    private BVHNodeClass Build(List<PrimitiveInfoClass> primitiveInfos, int start, int end)
+    private BVHNode Build(List<PrimitiveInfo> primitiveInfos, int start, int end)
     {
-        AABBClass bounding = new();
+        AABB bounding = new();
         //  计算所有面片的包围盒
         for (int i = start; i < end; i++)
         {
@@ -333,10 +333,10 @@ public class BVH
             // 从这里可以看出，OrderedPrimitiveIndices中存储的是面片的索引，排序后的索引对应原面片索引
             //TODO: 那么这个顺序有什么用呢？
             OrderedPrimitiveIndices.Add(primitiveIdx);
-            return BVHNodeClass.CreateLeaf(idx, 1, bounding);
+            return BVHNode.CreateLeaf(idx, 1, bounding);
         }
 
-        AABBClass centerBounding = new();   //所有面片的中心点的包围盒
+        AABB centerBounding = new();   //所有面片的中心点的包围盒
         for (int i = start; i < end; i++)
         {
             centerBounding.Extend(primitiveInfos[i].Center);
@@ -344,7 +344,7 @@ public class BVH
 
         int dim = centerBounding.MaxDimension();
         int primitiveInfoMid = (start + end) / 2;
-        if (centerBounding.max[dim] == centerBounding.min[dim]) //无法在这个维度上划分，则直接创建叶子节点
+        if (Mathf.Approximately(centerBounding.max[dim], centerBounding.min[dim])) //无法在最大维度上划分，则直接创建叶子节点
         {
             int idx = OrderedPrimitiveIndices.Count;
             for (int i = start; i < end; i++)
@@ -353,17 +353,14 @@ public class BVH
                 OrderedPrimitiveIndices.Add(primitiveIdx);
             }
 
-            return BVHNodeClass.CreateLeaf(idx, primitiveInfoCount, bounding);
+            return BVHNode.CreateLeaf(idx, primitiveInfoCount, bounding);
         }
 
         if (primitiveInfoCount <= 2) // 面片数量太少，直接创建叶子节点
         {
-            Debug.Log(primitiveInfoCount);
-            primitiveInfos.Sort(start, end, Comparer<PrimitiveInfoClass>.Create((x, y) =>
-            {
-                int dim = x.Bounds.MaxDimension();
-                return x.Center[dim].CompareTo(y.Center[dim]); //按照中心点在最大维度上的位置排序
-            }));
+            primitiveInfos.Sort(start, end, Comparer<PrimitiveInfo>.Create((x, y) =>
+                x.Center[dim].CompareTo(y.Center[dim]) //按照中心点在最大维度上的位置排序
+            ));
         }
         else
         {
@@ -384,8 +381,8 @@ public class BVH
             //处理桶的cost
             List<int> countLeft = new List<int>() { buckets[0].Count };
             List<int> countRight = new List<int>() { 0 };
-            List<AABBClass> boundsLeft = new() { buckets[0].Bounds };
-            List<AABBClass> boundsRight = new() { null };
+            List<AABB> boundsLeft = new() { buckets[0].Bounds };
+            List<AABB> boundsRight = new() { null };
 
             //以下代码有优化空间
             //先计算左边的
@@ -393,8 +390,8 @@ public class BVH
             {
                 countLeft.Add(countLeft[i - 1] + buckets[i].Count);
                 countRight.Add(0); //初始化为0
-                boundsLeft.Add(AABBClass.Combine(boundsLeft[i - 1], buckets[i].Bounds));
-                boundsRight.Add(new AABBClass()); //初始化为空
+                boundsLeft.Add(AABB.Combine(boundsLeft[i - 1], buckets[i].Bounds));
+                boundsRight.Add(new AABB()); //初始化为空
             }
 
             countRight[nBuckets - 2] = buckets[nBuckets - 1].Count;
@@ -403,7 +400,7 @@ public class BVH
             for (int i = nBuckets - 3; i >= 0; i--)
             {
                 countRight[i] = countRight[i + 1] + buckets[i + 1].Count;
-                boundsRight[i] = AABBClass.Combine(boundsRight[i + 1], buckets[i + 1].Bounds);
+                boundsRight[i] = AABB.Combine(boundsRight[i + 1], buckets[i + 1].Bounds);
             }
 
             //计算cost
@@ -426,8 +423,8 @@ public class BVH
 
             if (primitiveInfoCount > 16 || minCost < leafCost) //继续划分
             {
-                List<PrimitiveInfoClass> leftInfos = new();
-                List<PrimitiveInfoClass> rightInfos = new();
+                List<PrimitiveInfo> leftInfos = new();
+                List<PrimitiveInfo> rightInfos = new();
                 for (int i = 0; i < primitiveInfoCount; i++)
                 {
                     int b = (int)Mathf.Floor(nBuckets * centerBounding.Offset(primitiveInfos[i].Center)[dim]);
@@ -463,7 +460,7 @@ public class BVH
                 // primitiveInfoCount是怎么和primitiveIdx对应的呢？
                 // idx索引对应的叶子节点的第一个面片的索引是idx，最后一个面片的索引是idx+primitiveInfoCount
                 // 然后通过这个idx+primitiveInfoCount在OrderedPrimitiveIndices中找到对应的实际面片索引
-                return BVHNodeClass.CreateLeaf(idx, primitiveInfoCount, bounding);
+                return BVHNode.CreateLeaf(idx, primitiveInfoCount, bounding);
             }
         }
 
@@ -472,6 +469,6 @@ public class BVH
         // 递归细分
         var leftChild = Build(primitiveInfos, start, primitiveInfoMid);
         var rightChild = Build(primitiveInfos, primitiveInfoMid, end);
-        return BVHNodeClass.CreateParent(dim, leftChild, rightChild);
+        return BVHNode.CreateParent(dim, leftChild, rightChild);
     }
 }
