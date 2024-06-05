@@ -415,4 +415,9 @@ public class BVHBuilder
         }
         else return dim;
     }
+    
+    public static List<BLASNode> GetBLASNodes()
+    {
+        return bnodes;
+    }
 }

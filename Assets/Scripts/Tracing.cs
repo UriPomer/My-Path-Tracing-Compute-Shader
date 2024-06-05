@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
@@ -101,7 +102,21 @@ public class Tracing : MonoBehaviour
         {
             target.Release();
         }
+        BVHBuilder.Destroy();
     }
-    
-    
+
+    private void OnDrawGizmos()
+    {
+        List<BLASNode> bnodes = BVHBuilder.GetBLASNodes();
+        if (bnodes == null) return;
+        foreach (var node in bnodes)
+        {
+            Gizmos.color = Color.green;
+            Vector3 boundsMin = node.BoundMin;
+            Vector3 boundsMax = node.BoundMax;
+            Vector3 size = boundsMax - boundsMin;
+            Vector3 center = boundsMin + size * 0.5f;
+            Gizmos.DrawWireCube(center, size);
+        }
+    }
 }
