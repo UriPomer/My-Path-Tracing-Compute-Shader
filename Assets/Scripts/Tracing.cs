@@ -79,7 +79,7 @@ public class Tracing : MonoBehaviour
         if (BVHBuilder.UVBuffer != null) tracingShader.SetBuffer(0, "_UVs", BVHBuilder.UVBuffer);
         if (BVHBuilder.MaterialBuffer != null) tracingShader.SetBuffer(0, "_Materials", BVHBuilder.MaterialBuffer);
         if (BVHBuilder.TLASBuffer != null) tracingShader.SetBuffer(0, "_TNodes", BVHBuilder.TLASBuffer);
-        if (BVHBuilder.TLASRawBuffer != null) tracingShader.SetBuffer(0, "_TNodesRaw", BVHBuilder.TLASRawBuffer);
+        if (BVHBuilder.MeshNodeBuffer != null) tracingShader.SetBuffer(0, "_MeshNodes", BVHBuilder.MeshNodeBuffer);
         if (BVHBuilder.BLASBuffer != null) tracingShader.SetBuffer(0, "_BNodes", BVHBuilder.BLASBuffer);
         if (BVHBuilder.TransformBuffer != null) tracingShader.SetBuffer(0, "_Transforms", BVHBuilder.TransformBuffer);
         if (BVHBuilder.AlbedoTextures != null) tracingShader.SetTexture(0, "_AlbedoTextures", BVHBuilder.AlbedoTextures);
@@ -107,16 +107,21 @@ public class Tracing : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        List<BLASNode> bnodes = BVHBuilder.GetBLASNodes();
-        if (bnodes == null) return;
-        foreach (var node in bnodes)
+        var bnodes = BVHBuilder.GetBLASNodes();
+        var meshNodes = BVHBuilder.GetMeshNodes();
+        var transforms = BVHBuilder.GetTransforms();
+        if (bnodes != null && meshNodes != null && transforms != null)
         {
-            Gizmos.color = Color.green;
-            Vector3 boundsMin = node.BoundMin;
-            Vector3 boundsMax = node.BoundMax;
-            Vector3 size = boundsMax - boundsMin;
-            Vector3 center = boundsMin + size * 0.5f;
-            Gizmos.DrawWireCube(center, size);
+            for (int i = 0; i < meshNodes.Count; i++)
+            {
+                var meshNode = meshNodes[i];
+                var localToWorld = transforms[meshNode.TransformIdx * 2];
+                var bnode = bnodes[meshNode.NodeRootIdx];
+                Gizmos.color = Color.green;
+                var boundCenter = (meshNode.BoundMin + meshNode.BoundMax) / 2;
+                var size = meshNode.BoundMax - meshNode.BoundMin;
+                Gizmos.DrawWireCube(localToWorld.MultiplyPoint3x4(boundCenter), localToWorld.MultiplyVector(size));
+            }
         }
     }
 }

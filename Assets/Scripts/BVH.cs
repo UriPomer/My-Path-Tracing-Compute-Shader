@@ -15,9 +15,10 @@ public struct BLASNode
 }
 
 /// <summary>
-/// Raw TLAS node info
+/// 含有SubMesh的包围盒、Transform索引
+/// NodeRootIdx是这个Mesh的BLAS节点的起始索引
 /// </summary>
-public struct TLASRawNode
+public struct MeshNode
 {
     public Vector3 BoundMax;
     public Vector3 BoundMin;
@@ -34,8 +35,8 @@ public struct TLASNode
 {
     public Vector3 BoundMax;
     public Vector3 BoundMin;
-    public int RawNodeStartIdx;
-    public int RawNodeEndIdx;
+    public int MeshNodeStartIdx;
+    public int MeshNodeEndIdx;
     public int ChildIdx;
 
     public static int TypeSize = sizeof(float)*3*2+sizeof(int)*3;
@@ -192,7 +193,7 @@ public class BVH
     public BVHNode BVHRoot = null;
 
     public void AddSubMeshToBLAS(ref List<int> indices, ref List<BLASNode> bnodes,
-        ref List<TLASRawNode> tnodesRaw, List<int> subindices,
+        ref List<MeshNode> tnodesRaw, List<int> subindices,
         int verticesIdxOffset, int materialIdx, int objectTransformIdx)
     {
         int primitiveCount = indices.Count / 3;
@@ -221,28 +222,36 @@ public class BVH
                 MaterialIdx = node.PrimitiveStartIdx >= 0 ? materialIdx : 0,
                 ChildIdx = node.PrimitiveEndIdx >= 0 ? -1 : nodes.Count + bnodesCount + 1
             });
+            // 注意这里是先插入左节点，再插入右节点，所以在BLAS中，右节点的索引是左节点的索引+1
             if (node.LeftChild != null) nodes.Enqueue(node.LeftChild);
             if (node.RightChild != null) nodes.Enqueue(node.RightChild);
         }
 
-        tnodesRaw.Add(new TLASRawNode
+        tnodesRaw.Add(new MeshNode
         {
             BoundMax = BVHRoot.Bounds.max,
             BoundMin = BVHRoot.Bounds.min,
             TransformIdx = objectTransformIdx,
-            NodeRootIdx = bnodesCount   //这个是BLAS的根节点索引，但根本没有用过
+            NodeRootIdx = bnodesCount
         });
     }
-
-    public void FlattenTLAS(ref List<TLASRawNode> rawNodes, ref List<TLASNode> tnodes)
+    
+    /// <summary>
+    /// rawNodes代表每一个Mesh的属性，包括包围盒、Transform索引等，而且是世界坐标系下的属性
+    /// BVHRoot是整个场景的BVH根节点，是用rawNodes的信息构建的
+    /// 这里通过rawNodes和BVH生成TLASNode
+    /// </summary>
+    /// <param name="meshNodes"></param>
+    /// <param name="tnodes"></param>
+    public void FlattenTLAS(ref List<MeshNode> meshNodes, ref List<TLASNode> tnodes)
     {
-        List<TLASRawNode> orderedRawNodes = new List<TLASRawNode>();
-        foreach (var rawNodeIdx in OrderedPrimitiveIndices)
+        List<MeshNode> orderedRawNodes = new List<MeshNode>();
+        foreach (var rawNodeIdx in OrderedPrimitiveIndices) //实际上，在这里OrderedPrimitiveIndices存储的是rawNode(Mesh)的索引，而不是primitive的索引
         {
-            orderedRawNodes.Add(rawNodes[rawNodeIdx]);
+            orderedRawNodes.Add(meshNodes[rawNodeIdx]);
         }
 
-        rawNodes = orderedRawNodes;
+        meshNodes = orderedRawNodes;
         Queue<BVHNode> nodes = new();
         nodes.Enqueue(BVHRoot);
         while (nodes.Count > 0)
@@ -252,8 +261,8 @@ public class BVH
             {
                 BoundMax = node.Bounds.max,
                 BoundMin = node.Bounds.min,
-                RawNodeStartIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveStartIdx : -1,
-                RawNodeEndIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveEndIdx : -1,
+                MeshNodeStartIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveStartIdx : -1,    // 这里的PrimitiveStartIdx实际上也是rawNode的索引，看来有必要重写，要不然很容易混淆
+                MeshNodeEndIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveEndIdx : -1,
                 ChildIdx = node.PrimitiveStartIdx >= 0 ? -1 : nodes.Count + tnodes.Count + 1
             });
             if (node.LeftChild != null) nodes.Enqueue(node.LeftChild);
@@ -283,8 +292,15 @@ public class BVH
         return infos;
     }
     
-    // rawNodes 含有 AABB 和 TransformIdx 信息，transforms 为每个Transform的矩阵
-    private List<PrimitiveInfo> createPrimitiveInfo(List<TLASRawNode> rawNodes, List<Matrix4x4> transforms)
+    /// <summary>
+    /// 通过TLASRawNode和Transforms生成PrimitiveInfo
+    /// 这里的rawNodes，通常情况下，场景中有几个物体，就有几个rawNodes，但如何一个mesh有多个submesh，那么这个mesh就会有多个rawNodes
+    /// </summary>
+    /// <param name="rawNodes"></param>
+    /// <param name="transforms"></param>
+    /// <returns></returns>
+    private List<PrimitiveInfo> createPrimitiveInfo(List<MeshNode> rawNodes, List<Matrix4x4> transforms) 
+        //这个函数完全可以改名，它只是把rawNode的包围盒从local space转换到world space，并且计算了变换后的包围盒的中心点
     {
         List<PrimitiveInfo> infos = new();
         for (int i = 0; i < rawNodes.Count; i++)
@@ -292,7 +308,7 @@ public class BVH
             var node = rawNodes[i];
             infos.Add(new PrimitiveInfo
             {
-                // 这里的乘以2是因为每个Transform有两个矩阵，一个是localToWorld，一个是worldToLocal，这里的transform是localToWorld
+                // 这里的乘以2是因为每个Transform有两个矩阵，一个是localToWorld，一个是worldToLocal，这里的transform是localToWorld，如果加一才那就是worldToLocal
                 Bounds = new AABB(transforms[node.TransformIdx * 2].MultiplyPoint3x4(node.BoundMin),
                     transforms[node.TransformIdx * 2].MultiplyPoint3x4(node.BoundMax)),
                 PrimitiveIdx = i
@@ -309,7 +325,7 @@ public class BVH
         BVHRoot = Build(primitiveInfos, 0, primitiveInfos.Count);
     }
 
-    public BVH(List<TLASRawNode> rawNodes, List<Matrix4x4> transforms)
+    public BVH(List<MeshNode> rawNodes, List<Matrix4x4> transforms)
     {
         List<PrimitiveInfo> primitiveInfos = createPrimitiveInfo(rawNodes, transforms);
         BVHRoot = Build(primitiveInfos, 0, primitiveInfos.Count);
@@ -425,9 +441,9 @@ public class BVH
             
             // 如果没有任何划分的cost比当前的叶子节点还要大，则直接创建叶子节点，要不然只是徒增cost
             float leafCost = primitiveInfoCount;
-            minCost = 0.5f + minCost / bounding.SurfaceArea();  //0.5f是一个修正值
+            minCost = 1.0f + minCost / bounding.SurfaceArea();
 
-            if (primitiveInfoCount > 16 || minCost < leafCost) //继续划分
+            if (primitiveInfoCount > 32 || minCost < leafCost) //继续划分
             {
                 List<PrimitiveInfo> leftInfos = new();
                 List<PrimitiveInfo> rightInfos = new();

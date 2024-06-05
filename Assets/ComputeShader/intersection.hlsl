@@ -2,27 +2,31 @@
 
 #define BVHTREE_RECURSE_SIZE 32
 
+/*
+ * 传入面的索引idx，交点处通过插值得到的uv坐标data，法线纹理索引normIdx，uv坐标uv
+ * 返回局部坐标的法线
+ */
 float3 GetNormal(int idx, float2 data, int normIdx, float2 uv)
 {
     float3 norm0 = _Normals[_Indices[idx]];
     float3 norm1 = _Normals[_Indices[idx + 1]];
     float3 norm2 = _Normals[_Indices[idx + 2]];
-    float3 norm = norm1 * data.x + norm2 * data.y + norm0 * (1.0 - data.x - data.y);
+    float3 norm = norm1 * data.x + norm2 * data.y + norm0 * (1.0 - data.x - data.y);    //插值得到法线
     float4 tangent0 = _Tangents[_Indices[idx]];
     float4 tangent1 = _Tangents[_Indices[idx + 1]];
     float4 tangent2 = _Tangents[_Indices[idx + 2]];
-    float4 tangent = tangent1 * data.x + tangent2 * data.y + tangent0 * (1.0 - data.x - data.y);
+    float4 tangent = tangent1 * data.x + tangent2 * data.y + tangent0 * (1.0 - data.x - data.y);    //插值得到切线
     //tangent.w = tangent0.w;
     if (normIdx >= 0)
     {
-        float3 binorm = normalize(cross(norm, tangent.xyz)) * tangent.w;
+        float3 binorm = normalize(cross(norm, tangent.xyz)) * tangent.w;    //计算副法线，也是一个切线，tangent.w通常是1或-1，为切线的方向，保持正交
         float3x3 TBN = float3x3(
             norm,
             binorm,
             tangent.xyz
-        );
+        );  // 切线空间矩阵
         float3 normTS = _NormalTextures.SampleLevel(sampler_NormalTextures, float3(uv, normIdx), 0.0).xyz * 2.0 - 1.0;
-        return mul(normTS, TBN);
+        return mul(normTS, TBN);   //将法线从切线空间变换到物体的局部坐标系
     }
     else
     {
@@ -71,14 +75,20 @@ bool SkipTransparent(Material mat)
     return rand() < (1.0 - f) * (1.0 - mat.metallic) * (1.0 - r);
 }
 
+/*
+ *把光线的起点和方向变换到局部坐标系，然后返回新的光线
+ */
 Ray PrepareTreeEnterRay(Ray ray, int transformIdx)
 {
     float4x4 worldToLocal = _Transforms[transformIdx * 2 + 1];
-    float3 origin = mul(worldToLocal, float4(ray.origin, 1.0)).xyz;
-    float3 dir = normalize(mul(worldToLocal, float4(ray.dir, 0.0)).xyz);
+    float3 origin = mul(worldToLocal, float4(ray.origin, 1.0)).xyz;     // 把光线的起点变换到局部坐标系
+    float3 dir = normalize(mul(worldToLocal, float4(ray.dir, 0.0)).xyz);    // 把光线的方向变换到局部坐标系
     return GenRay(origin, dir);
 }
 
+/*
+ *变换长度为targetDist的向量到局部坐标系，然后返回新的长度
+ */
 float PrepareTreeEnterTargetDistance(float targetDist, int transformIdx)
 {
     float4x4 worldToLocal = _Transforms[transformIdx * 2 + 1];
@@ -88,13 +98,15 @@ float PrepareTreeEnterTargetDistance(float targetDist, int transformIdx)
     }
     else
     {
-        // transform a directional vector of length targetDist
-        // and return the new length
+        // 变换长度为targetDist的向量到局部坐标系，然后返回新的长度
         float3 dir = mul(worldToLocal, float4(targetDist, 0.0, 0.0, 0.0)).xyz;
         return length(dir);
     }
 }
 
+/*
+ *将RayHit hit的属性变换到局部坐标系
+ */
 void PrepareTreeEnterHit(Ray rayLocal, inout RayHit hit, int transformIdx)
 {
     float4x4 worldToLocal = _Transforms[transformIdx * 2 + 1];
@@ -105,7 +117,9 @@ void PrepareTreeEnterHit(Ray rayLocal, inout RayHit hit, int transformIdx)
     }
 }
 
-// update a hit info after exiting a BLAS tree
+/*
+ *将RayHit hit的属性变换到世界坐标系
+ */
 void PrepareTreeExit(Ray rayWorld, inout RayHit hit, int transformIdx)
 {
     float4x4 localToWorld = _Transforms[transformIdx * 2];
@@ -116,12 +130,14 @@ void PrepareTreeExit(Ray rayWorld, inout RayHit hit, int transformIdx)
     }
 }
 
+// Schlick Fresnel 近似
 float3 SchlickFresnel(float cosTheta, float3 F0)
 {
     //return F0 + (1.0 - F0) * pow(abs(1.0 - cosTheta), 5.0);
     return lerp(F0, 1.0, pow(abs(1.0 - cosTheta), 5.0));
 }
 
+// Smith GGX shadowing-masking function
 float SmithG(float NDotV, float alphaG)
 {
     float a = alphaG * alphaG;
@@ -129,6 +145,9 @@ float SmithG(float NDotV, float alphaG)
     return (2.0 * NDotV) / (NDotV + sqrt(a + b - a * b));
 }
 
+/*
+ *与地面相交，数据存储在bestHit中
+ */
 void IntersectGround(Ray ray, inout RayHit bestHit, float yVal = 0.0)
 {
     float t = (yVal - ray.origin.y) / ray.dir.y;
@@ -141,6 +160,10 @@ void IntersectGround(Ray ray, inout RayHit bestHit, float yVal = 0.0)
     }
 }
 
+
+/*
+ *通过targetDist快速判断光线是否与地面相交
+ */
 bool IntersectGroundFast(Ray ray, float targetDist, float yVal = 0.0)
 {
     float t = -(ray.origin.y - yVal) / ray.dir.y;
@@ -174,6 +197,9 @@ bool IntersectTriangle(Ray ray, float3 v0, float3 v1, float3 v2,
     return true;
 }
 
+/*
+ *判断光线是否与盒子相交
+ */
 bool IntersectBox1(Ray ray, float3 pMax, float3 pMin)
 {
     float t0 = 0.0;
@@ -194,6 +220,9 @@ bool IntersectBox1(Ray ray, float3 pMax, float3 pMin)
     return true;
 }
 
+/*
+ *判断光线是否与盒子相交
+ */
 bool IntersectBox2(Ray ray, float3 pMax, float3 pMin)
 {
     // reference: https://github.com/knightcrawler25/GLSL-PathTracer/blob/master/src/shaders/common/intersection.glsl
@@ -208,6 +237,9 @@ bool IntersectBox2(Ray ray, float3 pMax, float3 pMin)
     return t1 >= t0;
 }
 
+/*
+ *判断光线是否与盒子相交，同时考虑光线的双向
+ */
 bool IntersectBox3(Ray ray, RayHit bestHit, float3 pMax, float3 pMin)
 {
     bool intersectForward = IntersectBox2(ray, pMax, pMin);
@@ -274,27 +306,33 @@ bool IntersectMeshObjectFast(Ray ray, MeshData mesh, float targetDist)
     return false;
 }
 
+/*
+ *与BLAS树中的三角形面求交
+ */
 void IntersectBlasTree(Ray ray, inout RayHit bestHit, int startIdx, int transformIdx)
 {
     int stack[BVHTREE_RECURSE_SIZE];
     int stackPtr = 0;
-    int faceIdx;
+    int primitiveIdx;
     stack[stackPtr] = startIdx;
     float4x4 localToWorld = _Transforms[transformIdx * 2];
     while (stackPtr >= 0 && stackPtr < BVHTREE_RECURSE_SIZE)
     {
-        int idx = stack[stackPtr--];
-        BLASNode node = _BNodes[idx];
-        // check if ray intersect with bounding box
-        bool hit = IntersectBox2(ray, node.boundMax, node.boundMin);
-        bool leaf = node.faceStartIdx >= 0;
+        int idx = stack[stackPtr--];    //模拟栈
+        BLASNode node = _BNodes[idx];   //获取当前BLAS节点
+
+        bool hit = IntersectBox2(ray, node.boundMax, node.boundMin);    // 和BLAS的包围盒求交
+        bool leaf = node.primitiveStartIdx >= 0;
         if (hit)
         {
             if (leaf)
             {
-                for (faceIdx = node.faceStartIdx; faceIdx < node.faceEndIdx; faceIdx++)
+                // 遍历BLAS中的每一个面
+                for (primitiveIdx = node.primitiveStartIdx; primitiveIdx < node.primitiveEndIdx; primitiveIdx++)
                 {
-                    int i = faceIdx * 3;
+                    // 根据之前得出的结论，这里的_Indices对应OrderedPrimitiveIndices，然后每一个BLASNode的primitiveStartIdx和primitiveEndIdx对应的是OrderedPrimitiveIndices的索引
+                    // 然后再通过OrderedPrimitiveIndices的索引找到实际的面的索引
+                    int i = primitiveIdx * 3;   // i是面的索引
                     float3 v0 = _Vertices[_Indices[i]];
                     float3 v1 = _Vertices[_Indices[i + 1]];
                     float3 v2 = _Vertices[_Indices[i + 2]];
@@ -302,19 +340,19 @@ void IntersectBlasTree(Ray ray, inout RayHit bestHit, int startIdx, int transfor
                     float2 uv1 = _UVs[_Indices[i + 1]];
                     float2 uv2 = _UVs[_Indices[i + 2]];
                     float t, u, v;
-                    if (IntersectTriangle(ray, v0, v1, v2, t, u, v))
+                    if (IntersectTriangle(ray, v0, v1, v2, t, u, v))    //与面求交
                     {
-                        if (t > 0.0 && t < bestHit.distance)
+                        if (t > 0.0 && t < bestHit.distance)    //距离更近且不为负数
                         {
                             MaterialData mat = _Materials[node.materialIdx];
                             float3 hitPos = ray.origin + t * ray.dir;
-                            float2 uv = uv1 * u + uv2 * v + uv0 * (1.0 - u - v);
+                            float2 uv = uv1 * u + uv2 * v + uv0 * (1.0 - u - v);    //插值uv
                             float3 norm = GetNormal(i, float2(u, v), mat.normIdx, uv);
                             Material mats = GenMaterial(
                                 mat.color.rgb, mat.emission, mat.metallic, mat.smoothness, mat.color.a, mat.ior,
                                 int4(mat.albedoIdx, mat.metalIdx, mat.emitIdx, mat.roughIdx), uv
                             );
-                            if (mat.mode == 1.0 && mats.alpha < 1.0)
+                            if (mat.mode == 1.0 && mats.alpha < 1.0)    // 如果这是一个透明材质，那么则忽略它与光线的相交
                                 continue;
                             bestHit.distance = t;
                             bestHit.position = hitPos;
@@ -326,18 +364,21 @@ void IntersectBlasTree(Ray ray, inout RayHit bestHit, int startIdx, int transfor
             }
             else
             {
-                stack[++stackPtr] = node.childIdx;
-                stack[++stackPtr] = node.childIdx + 1;
+                stack[++stackPtr] = node.childIdx;  //左子节点
+                stack[++stackPtr] = node.childIdx + 1;  //右子节点
             }
         }
     }
 }
 
+/*
+ *判断是否与BLAS树中的三角形面相交
+ */
 bool IntersectBlasTreeFast(Ray ray, int startIdx, float targetDist)
 {
     int stack[BVHTREE_RECURSE_SIZE];
     int stackPtr = 0;
-    int faceIdx;
+    int primitiveIdx;
     stack[stackPtr] = startIdx;
     while (stackPtr >= 0 && stackPtr < BVHTREE_RECURSE_SIZE)
     {
@@ -345,14 +386,14 @@ bool IntersectBlasTreeFast(Ray ray, int startIdx, float targetDist)
         BLASNode node = _BNodes[idx];
         // check if ray intersect with bounding box
         bool hit = IntersectBox2(ray, node.boundMax, node.boundMin);
-        bool leaf = node.faceStartIdx >= 0;
+        bool leaf = node.primitiveStartIdx >= 0;
         if (hit)
         {
             if (leaf)
             {
-                for (faceIdx = node.faceStartIdx; faceIdx < node.faceEndIdx; faceIdx++)
+                for (primitiveIdx = node.primitiveStartIdx; primitiveIdx < node.primitiveEndIdx; primitiveIdx++)
                 {
-                    int i = faceIdx * 3;
+                    int i = primitiveIdx * 3;
                     float3 v0 = _Vertices[_Indices[i]];
                     float3 v1 = _Vertices[_Indices[i + 1]];
                     float3 v2 = _Vertices[_Indices[i + 2]];
@@ -398,7 +439,7 @@ void IntersectTlasTree(Ray ray, inout RayHit bestHit)
     {
         int idx = stack[stackPtr--];
         TLASNode node = _TNodes[idx];
-        bool hit = IntersectBox3(ray, bestHit, node.boundMax, node.boundMin);
+        bool hit = IntersectBox3(ray, bestHit, node.boundMax, node.boundMin);   // 和TLAS的包围盒求交，同时考虑光线的负向
         bool leaf = node.rawNodeStartIdx >= 0;
         if(hit)
         {
@@ -406,7 +447,7 @@ void IntersectTlasTree(Ray ray, inout RayHit bestHit)
             {
                 for (rawNodeIdx = node.rawNodeStartIdx; rawNodeIdx < node.rawNodeEndIdx; rawNodeIdx++)
                 {
-                    TLASNodeRaw rawNode = _TNodesRaw[rawNodeIdx];
+                    MeshNode rawNode = _MeshNodes[rawNodeIdx];
                     Ray localRay = PrepareTreeEnterRay(ray, rawNode.transformIdx);
                     PrepareTreeEnterHit(localRay, bestHit, rawNode.transformIdx);
                     IntersectBlasTree(localRay, bestHit, rawNode.rootIdx, rawNode.transformIdx);
@@ -425,10 +466,10 @@ void IntersectTlasTree(Ray ray, inout RayHit bestHit)
 void IntersectTlas(Ray ray, inout RayHit bestHit)
 {
     uint size, stride;
-    _TNodesRaw.GetDimensions(size, stride);
+    _MeshNodes.GetDimensions(size, stride);
     for (uint i = 0; i < size; i++)
     {
-        TLASNodeRaw node = _TNodesRaw[i];
+        MeshNode node = _MeshNodes[i];
         Ray localRay = PrepareTreeEnterRay(ray, node.transformIdx);
         if (IntersectBox2(localRay, node.boundMax, node.boundMin))
         {
@@ -458,7 +499,7 @@ bool IntersectTlasTreeFast(Ray ray, RayHit bestHit, float targetDist)
             {
                 for (rawNodeIdx = node.rawNodeStartIdx; rawNodeIdx < node.rawNodeEndIdx; rawNodeIdx++)
                 {
-                    TLASNodeRaw rawNode = _TNodesRaw[rawNodeIdx];
+                    MeshNode rawNode = _MeshNodes[rawNodeIdx];
                     Ray localRay = PrepareTreeEnterRay(ray, rawNode.transformIdx);
                     PrepareTreeEnterHit(localRay, bestHit, rawNode.transformIdx);
                     if (IntersectBlasTreeFast(localRay, rawNode.rootIdx, targetDist))
@@ -479,11 +520,11 @@ bool IntersectTlasTreeFast(Ray ray, RayHit bestHit, float targetDist)
 bool IntersectTlasFast(Ray ray, RayHit bestHit, float targetDist)
 {
     uint size, stride;
-    _TNodesRaw.GetDimensions(size, stride);
+    _MeshNodes.GetDimensions(size, stride);
     float dist = targetDist;
     for (uint i = 0; i < size; i++)
     {
-        TLASNodeRaw node = _TNodesRaw[i];
+        MeshNode node = _MeshNodes[i];
         Ray localRay = PrepareTreeEnterRay(ray, node.transformIdx);
         if (IntersectBox2(localRay, node.boundMax, node.boundMin))
         {

@@ -35,7 +35,7 @@ public class BVHBuilder
     // Acceleration structure
     private static List<BLASNode> bnodes = new List<BLASNode>();
     private static List<TLASNode> tnodes = new List<TLASNode>();
-    private static List<TLASRawNode> tnodesRaw = new List<TLASRawNode>();
+    private static List<MeshNode> meshNodes = new List<MeshNode>();
     
     // transform data, size of objects * 2, contains local to world and inverse matrix
     private static List<Matrix4x4> transforms = new List<Matrix4x4>();
@@ -51,7 +51,7 @@ public class BVHBuilder
     public static ComputeBuffer MaterialBuffer;
     public static ComputeBuffer BLASBuffer;
     public static ComputeBuffer TLASBuffer;
-    public static ComputeBuffer TLASRawBuffer;
+    public static ComputeBuffer MeshNodeBuffer;
     public static ComputeBuffer TransformBuffer;
     public static Texture2DArray AlbedoTextures = null;
     public static Texture2DArray EmissionTextures = null;
@@ -239,7 +239,7 @@ public class BVHBuilder
                 //TODO:
                 //这里的build是build了BVHNode，这个BVH和下面的bnodes的区别是什么？
                 BVH blasTree = new BVH(meshVertices, subMeshIndices);   //这个对象创建之后就没有用了，数据存储在下面的ref的参数里
-                blasTree.AddSubMeshToBLAS(ref indices, ref bnodes, ref tnodesRaw, subMeshIndices, vertexStart, i < matCount ? i + matStart : 0, objectIdx);
+                blasTree.AddSubMeshToBLAS(ref indices, ref bnodes, ref meshNodes, subMeshIndices, vertexStart, i < matCount ? i + matStart : 0, objectIdx);
             }
             vertices.AddRange(meshVertices);
             normals.AddRange(meshNormals);
@@ -302,13 +302,13 @@ public class BVHBuilder
 
     public static void ReloadTLAS()
     {
-        if (tnodesRaw.Count <= 0) return;
+        if (meshNodes.Count <= 0) return;
         if (transforms.Count <= 0) LoadTransforms();
         tnodes.Clear();
-        BVH tlasTree = new BVH(tnodesRaw, transforms);
-        tlasTree.FlattenTLAS(ref tnodesRaw, ref tnodes);
+        BVH tlasTree = new BVH(meshNodes, transforms);
+        tlasTree.FlattenTLAS(ref meshNodes, ref tnodes);
         SetBuffer(ref TLASBuffer, tnodes, TLASNode.TypeSize);
-        SetBuffer(ref TLASRawBuffer, tnodesRaw, TLASRawNode.TypeSize);
+        SetBuffer(ref MeshNodeBuffer, meshNodes, MeshNode.TypeSize);
     }
 
     private static void SetBuffer<T>(ref ComputeBuffer buffer, List<T> data, int stride) where T : struct
@@ -359,7 +359,7 @@ public class BVHBuilder
         if (UVBuffer != null) UVBuffer.Release();
         if (MaterialBuffer != null) MaterialBuffer.Release();
         if (TLASBuffer != null) TLASBuffer.Release();
-        if (TLASRawBuffer != null) TLASRawBuffer.Release();
+        if (MeshNodeBuffer != null) MeshNodeBuffer.Release();
         if (BLASBuffer != null) BLASBuffer.Release();
         if (TransformBuffer != null) TransformBuffer.Release();
         if (AlbedoTextures != null) UnityEngine.Object.Destroy(AlbedoTextures);
@@ -421,5 +421,15 @@ public class BVHBuilder
     public static List<BLASNode> GetBLASNodes()
     {
         return bnodes;
+    }
+    
+    public static List<MeshNode> GetMeshNodes()
+    {
+        return meshNodes;
+    }
+    
+    public static List<Matrix4x4> GetTransforms()
+    {
+        return transforms;
     }
 }

@@ -68,21 +68,21 @@ struct BLASNode
 {
     float3 boundMax;
     float3 boundMin;
-    int faceStartIdx;
-    int faceEndIdx;
+    int primitiveStartIdx;
+    int primitiveEndIdx;
     int materialIdx;
     int childIdx;
 };
 StructuredBuffer<BLASNode> _BNodes;
 
-struct TLASNodeRaw
+struct MeshNode
 {
     float3 boundMax;
     float3 boundMin;
     int transformIdx;
     int rootIdx;
 };
-StructuredBuffer<TLASNodeRaw> _TNodesRaw;
+StructuredBuffer<MeshNode> _MeshNodes;
 
 struct TLASNode
 {
@@ -132,6 +132,7 @@ Material GenMaterial(float3 baseColor, float3 emission,
     float metallic, float smoothness, float alpha, float ior,
     int4 indices = -1, float2 uv = 0.0)
 {
+    // 以下的大于0是检查是否有贴图，如果有贴图，那就从贴图中获取对应的值，否则就使用材质的值
     if (indices.x >= 0)
     {
         // fetch albedo color
