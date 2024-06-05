@@ -98,4 +98,10 @@ public class LightManager : MonoBehaviour
         pointLightsBuffer = new ComputeBuffer(pointLightsPosColor.Count, 4 * sizeof(float));
         pointLightsBuffer.SetData(pointLightsPosColor);
     }
+
+    private void OnDisable()
+    {
+        if (pointLightsBuffer != null)
+            pointLightsBuffer.Release();
+    }
 }
