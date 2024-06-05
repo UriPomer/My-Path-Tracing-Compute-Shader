@@ -34,7 +34,7 @@ public class BVHBuilder
     private static List<Vector4> tangents = new List<Vector4>();
     // Acceleration structure
     private static List<BLASNode> bnodes = new List<BLASNode>();
-    private static List<TLASUpperNode> tnodes = new List<TLASUpperNode>();
+    private static List<TLASNode> tnodes = new List<TLASNode>();
     private static List<TLASRawNode> tnodesRaw = new List<TLASRawNode>();
     
     // transform data, size of objects * 2, contains local to world and inverse matrix
@@ -307,7 +307,7 @@ public class BVHBuilder
         tnodes.Clear();
         BVH tlasTree = new BVH(tnodesRaw, transforms);
         tlasTree.FlattenTLAS(ref tnodesRaw, ref tnodes);
-        SetBuffer(ref TLASBuffer, tnodes, TLASUpperNode.TypeSize);
+        SetBuffer(ref TLASBuffer, tnodes, TLASNode.TypeSize);
         SetBuffer(ref TLASRawBuffer, tnodesRaw, TLASRawNode.TypeSize);
     }
 

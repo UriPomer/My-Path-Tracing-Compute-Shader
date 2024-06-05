@@ -21,7 +21,7 @@ public struct TLASRawNode
 {
     public Vector3 BoundMax;
     public Vector3 BoundMin;
-    public int TransformIdx;
+    public int TransformIdx;    // also the index of the object
     public int NodeRootIdx;
 
     public static int TypeSize = sizeof(float)*3*2+sizeof(int)*2;
@@ -30,7 +30,7 @@ public struct TLASRawNode
 /// <summary>
 /// TLAS node built with bvh
 /// </summary>
-public struct TLASUpperNode
+public struct TLASNode
 {
     public Vector3 BoundMax;
     public Vector3 BoundMin;
@@ -234,7 +234,7 @@ public class BVH
         });
     }
 
-    public void FlattenTLAS(ref List<TLASRawNode> rawNodes, ref List<TLASUpperNode> tnodes)
+    public void FlattenTLAS(ref List<TLASRawNode> rawNodes, ref List<TLASNode> tnodes)
     {
         List<TLASRawNode> orderedRawNodes = new List<TLASRawNode>();
         foreach (var rawNodeIdx in OrderedPrimitiveIndices)
@@ -248,7 +248,7 @@ public class BVH
         while (nodes.Count > 0)
         {
             var node = nodes.Dequeue();
-            tnodes.Add(new TLASUpperNode
+            tnodes.Add(new TLASNode
             {
                 BoundMax = node.Bounds.max,
                 BoundMin = node.Bounds.min,
@@ -318,11 +318,17 @@ public class BVH
     private BVHNode Build(List<PrimitiveInfo> primitiveInfos, int start, int end)
     {
         AABB bounding = new();
+        Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+        Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
         //  计算所有面片的包围盒
         for (int i = start; i < end; i++)
         {
             bounding.Extend(primitiveInfos[i].Bounds);
+            min = Vector3.Min(min, primitiveInfos[i].Bounds.min);
+            max = Vector3.Max(max, primitiveInfos[i].Bounds.max);
         }
+        
+        Debug.Log($"Bounding box: {bounding.min} {bounding.max}");
 
         int primitiveInfoCount = end - start;
         // 如果只有一个面片，直接创建叶子节点
