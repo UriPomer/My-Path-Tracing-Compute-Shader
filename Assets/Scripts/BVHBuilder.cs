@@ -41,7 +41,7 @@ public class BVHBuilder
     private static List<Matrix4x4> transforms = new List<Matrix4x4>();
     
     // algorithm data
-    private static List<int> indices = new List<int>();
+    private static List<int> indices = new List<int>(); // indices of vertices
     
     public static ComputeBuffer VertexBuffer;
     public static ComputeBuffer UVBuffer;
@@ -221,7 +221,7 @@ public class BVHBuilder
         }
     }
 
-    private static void BuildMeshData(List<GameObject> objects)
+    private static void BuildMeshData(List<GameObject> objects, int matStart)
     {
         foreach (var obj in objects)
         {
@@ -231,12 +231,13 @@ public class BVHBuilder
             var meshUVs = mesh.uv;
             var meshTangents = mesh.tangents;
             int vertexStart = vertices.Count;
-            int matStart = materials.Count;
             int matCount = obj.GetComponent<Renderer>().sharedMaterials.Length;
             int objectIdx = objects.IndexOf(obj);
             for (int i = 0; i < mesh.subMeshCount; i++)
             {
                 var subMeshIndices = mesh.GetIndices(i).ToList();
+                //TODO:
+                //这里的build是build了BVHNode，这个BVH和下面的bnodes的区别是什么？
                 BVH blasTree = new BVH(meshVertices, subMeshIndices);   //这个对象创建之后就没有用了，数据存储在下面的ref的参数里
                 blasTree.AddSubMeshToBLAS(ref indices, ref bnodes, ref tnodesRaw, subMeshIndices, vertexStart, i < matCount ? i + matStart : 0, objectIdx);
             }
@@ -254,9 +255,10 @@ public class BVHBuilder
     {
         if (!objectUpdated)
             return false;
-        
+
+        int matStart = materials.Count;
         BuildMaterialData(objects);
-        BuildMeshData(objects);
+        BuildMeshData(objects,matStart);
         
         // build TLAS bvh
         ReloadTLAS();
@@ -274,7 +276,7 @@ public class BVHBuilder
         transforms.Clear();
         
         
-        // 突然发现，由于每次都是按一定顺序遍历所有物体，所以这些数组的索引都是一一对应的
+        // 突然发现，由于每次都是使用“foreach(var obj in objects)”遍历所有物体，所以这些数组的索引都是一一对应的
         foreach(var obj in objects)
         {
             transforms.Add(obj.transform.localToWorldMatrix);

@@ -9,6 +9,7 @@ public class SceneObject : MonoBehaviour
         foreach(Transform sub in transform)
         {
             GameObject obj = sub.gameObject;
+            if (obj.activeSelf == false) continue;
             bool skipped = false;
             // a valid gameobject should have:
             // 1. mesh filter (for vertices data)

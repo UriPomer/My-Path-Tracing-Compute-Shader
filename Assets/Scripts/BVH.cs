@@ -206,7 +206,7 @@ public class BVH
         }
 
         Queue<BVHNode> nodes = new Queue<BVHNode>();
-        nodes.Enqueue(BVHRoot);
+        nodes.Enqueue(BVHRoot); //BVHRoot是调用这个函数的BVH的根节点
 
         while (nodes.Count > 0)
         {
@@ -230,7 +230,7 @@ public class BVH
             BoundMax = BVHRoot.Bounds.max,
             BoundMin = BVHRoot.Bounds.min,
             TransformIdx = objectTransformIdx,
-            NodeRootIdx = bnodesCount
+            NodeRootIdx = bnodesCount   //这个是BLAS的根节点索引，但根本没有用过
         });
     }
 
