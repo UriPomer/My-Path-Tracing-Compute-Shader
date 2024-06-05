@@ -358,7 +358,7 @@ public class BVH
 
         if (primitiveInfoCount <= 2) // 面片数量太少，直接创建叶子节点
         {
-            primitiveInfos.Sort(start, end, Comparer<PrimitiveInfo>.Create((x, y) =>
+            primitiveInfos.Sort(start, end - start, Comparer<PrimitiveInfo>.Create((x, y) =>
                 x.Center[dim].CompareTo(y.Center[dim]) //按照中心点在最大维度上的位置排序
             ));
         }
@@ -425,7 +425,7 @@ public class BVH
             {
                 List<PrimitiveInfo> leftInfos = new();
                 List<PrimitiveInfo> rightInfos = new();
-                for (int i = 0; i < primitiveInfoCount; i++)
+                for (int i = start; i < end; i++)
                 {
                     int b = (int)Mathf.Floor(nBuckets * centerBounding.Offset(primitiveInfos[i].Center)[dim]);
                     b = Mathf.Clamp(b, 0, nBuckets - 1);
