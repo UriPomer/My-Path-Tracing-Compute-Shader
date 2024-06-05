@@ -15,24 +15,10 @@ public class Tracing : MonoBehaviour
     [SerializeField, Range(0.0f, 10.0f)]
     float SkyboxIntensity = 1.0f;
     
-    [Header("Light Settings")]
-    [SerializeField]
-    private Light directionalLight;
-    [SerializeField]
-    Light[] PointLights;
     
     [SerializeField, Range(2, 20)]
     int TraceDepth = 5;
     
-    
-    private Vector3 directionalLightInfo;
-    private Vector4 directionalLightColorInfo;
-    // angles in radians
-    private float directionalLightYaw = 0.0f;
-    private float directionalLightPitch = 0.0f;
-    // point lights
-    private int pointLightsCount;
-    private ComputeBuffer pointLightsBuffer;
     
     private void Start()
     {
@@ -59,8 +45,23 @@ public class Tracing : MonoBehaviour
             target.Create();
         }
         
-        tracingShader.SetVector("_DirectionalLight", directionalLight.transform.forward);
-        tracingShader.SetVector("_DirectionalLightColor", directionalLight.color * directionalLight.intensity);
+        LightManager.Instance.UpdateLights();
+
+        var DirectionalLight = LightManager.Instance.DirectionalLight;
+        
+        Vector3 dir = DirectionalLight.transform.forward;
+        Vector3 directionalLightInfo = new Vector3(-dir.x, -dir.y, -dir.z);
+        Vector3 directionalLightColorInfo = new Vector4(
+            DirectionalLight.color.r,
+            DirectionalLight.color.g,
+            DirectionalLight.color.b,
+            DirectionalLight.intensity
+        );
+
+        var pointLightsBuffer = LightManager.Instance.pointLightsBuffer;
+        
+        tracingShader.SetVector("_DirectionalLight", directionalLightInfo);
+        tracingShader.SetVector("_DirectionalLightColor", directionalLightColorInfo);
         tracingShader.SetFloat("_Seed", UnityEngine.Random.value);
         tracingShader.SetTexture(kernelID, "_Result", target);
         tracingShader.SetVector("_Resolution", new Vector2(Screen.width, Screen.height));
@@ -68,6 +69,7 @@ public class Tracing : MonoBehaviour
         tracingShader.SetMatrix("_CameraInverseProjection", cam.projectionMatrix.inverse);
         tracingShader.SetTexture(kernelID, "_SkyboxTexture", skyboxTexture);
         tracingShader.SetInt("_PointLightsCount", 0);
+        tracingShader.SetBuffer(0,"_PointLights",pointLightsBuffer);
 
 		if (BVHBuilder.VertexBuffer != null) tracingShader.SetBuffer(0, "_Vertices", BVHBuilder.VertexBuffer);
         if (BVHBuilder.IndexBuffer != null) tracingShader.SetBuffer(0, "_Indices", BVHBuilder.IndexBuffer);

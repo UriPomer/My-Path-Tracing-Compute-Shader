@@ -238,7 +238,6 @@ public class BVHBuilder
             {
                 var subMeshIndices = mesh.GetIndices(i).ToList();
                 BVH blasTree = new BVH(meshVertices, subMeshIndices);   //这个对象创建之后就没有用了，数据存储在下面的ref的参数里
-                Debug.Log("aaa");
                 blasTree.AddSubMeshToBLAS(ref indices, ref bnodes, ref tnodesRaw, subMeshIndices, vertexStart, i < matCount ? i + matStart : 0, objectIdx);
             }
             vertices.AddRange(meshVertices);

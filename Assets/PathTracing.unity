@@ -377,8 +377,6 @@ MonoBehaviour:
   tracingShader: {fileID: 7200000, guid: f729f9caa1fdb5140afe66433bd74ff9, type: 3}
   skyboxTexture: {fileID: 2800000, guid: 4a55f77b0c2800047b1d1f32ca46dff5, type: 3}
   SkyboxIntensity: 1
-  directionalLight: {fileID: 59273704}
-  PointLights: []
   TraceDepth: 5
 --- !u!114 &296955525
 MonoBehaviour:
@@ -395,6 +393,52 @@ MonoBehaviour:
   moveSpeed: 5
   zoomSpeed: 2
   rotationSpeed: 100
+--- !u!1 &612482877
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 612482878}
+  - component: {fileID: 612482879}
+  m_Layer: 0
+  m_Name: LightManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &612482878
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 612482877}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &612482879
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 612482877}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 227719f6ed9e01c4483ccb7c1d4cb32d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  DirectionalLight: {fileID: 59273704}
+  PointLights: []
 --- !u!1 &700741927
 GameObject:
   m_ObjectHideFlags: 0
@@ -1137,3 +1181,4 @@ SceneRoots:
   - {fileID: 296955521}
   - {fileID: 59273705}
   - {fileID: 103934240}
+  - {fileID: 612482878}
