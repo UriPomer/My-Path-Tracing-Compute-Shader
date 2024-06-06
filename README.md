@@ -6,3 +6,4 @@
 
 下图是通过加速结构获得的网格包围盒
 ![image](./img/2.png)
+![image](./img/3.png)

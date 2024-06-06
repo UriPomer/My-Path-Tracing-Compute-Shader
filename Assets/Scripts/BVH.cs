@@ -218,9 +218,9 @@ public class BVH
                 BoundMin = node.Bounds.min,
                 // node.PrimitiveStartIdx >= 0 说明是叶子节点
                 PrimitiveStartIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveStartIdx + primitiveCount : -1,
-                PrimitiveEndIdx = node.PrimitiveEndIdx >= 0 ? node.PrimitiveEndIdx + primitiveCount : -1,
+                PrimitiveEndIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveEndIdx + primitiveCount : -1,
                 MaterialIdx = node.PrimitiveStartIdx >= 0 ? materialIdx : 0,
-                ChildIdx = node.PrimitiveEndIdx >= 0 ? -1 : nodes.Count + bnodesCount + 1
+                ChildIdx = node.PrimitiveStartIdx >= 0 ? -1 : nodes.Count + bnodesCount + 1
             });
             // 注意这里是先插入左节点，再插入右节点，所以在BLAS中，右节点的索引是左节点的索引+1
             if (node.LeftChild != null) nodes.Enqueue(node.LeftChild);
@@ -232,7 +232,7 @@ public class BVH
             BoundMax = BVHRoot.Bounds.max,
             BoundMin = BVHRoot.Bounds.min,
             TransformIdx = objectTransformIdx,
-            NodeRootIdx = bnodesCount
+            NodeRootIdx = bnodesCount,
         });
     }
     

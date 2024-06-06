@@ -116,11 +116,23 @@ public class Tracing : MonoBehaviour
             {
                 var meshNode = meshNodes[i];
                 var localToWorld = transforms[meshNode.TransformIdx * 2];
-                var bnode = bnodes[meshNode.NodeRootIdx];
+                
+                // draw mesh bounds
                 Gizmos.color = Color.green;
                 var boundCenter = (meshNode.BoundMin + meshNode.BoundMax) / 2;
                 var size = meshNode.BoundMax - meshNode.BoundMin;
                 Gizmos.DrawWireCube(localToWorld.MultiplyPoint3x4(boundCenter), localToWorld.MultiplyVector(size));
+                
+                
+                // draw bvh bounds
+                // find left and right child until leaf node
+                for(int j = meshNode.NodeRootIdx; j < meshNode.NodeEndIdx; j++)
+                {
+                    var bnode = bnodes[j];
+                    var bnodeBoundCenter = (bnode.BoundMin + bnode.BoundMax) / 2;
+                    var bnodeSize = bnode.BoundMax - bnode.BoundMin;
+                    Gizmos.DrawWireCube(localToWorld.MultiplyPoint3x4(bnodeBoundCenter), localToWorld.MultiplyVector(bnodeSize));
+                }
             }
         }
     }
