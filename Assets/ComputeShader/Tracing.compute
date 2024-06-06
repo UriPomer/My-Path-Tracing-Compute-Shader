@@ -1,6 +1,7 @@
 #pragma kernel CSMain
 
 #include "intersection.hlsl"
+#include "colors.hlsl"
 
 Ray GenRayByID(float2 pixelCoord)
 {
@@ -167,7 +168,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     for(int i = 0; i < 8; i++)
     {
         RayHit hit = Trace(r);
-        result += r.energy * Shade(r, hit);
+        result += r.energy * SRGB2Linear(Shade(r, hit));
 
         if (!any(r.energy))
         {
