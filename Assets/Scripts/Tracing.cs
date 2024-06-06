@@ -22,7 +22,7 @@ public class Tracing : MonoBehaviour
     
     [SerializeField]
     private bool drawGizmos = true;
-    [SerializeField, Range(0.0f, 10.0f)]
+    [SerializeField, Range(0.0f, 1.0f)]
     private float BVHCostOffset = 1.0f;
     
     
