@@ -104,4 +104,9 @@ public class LightManager : MonoBehaviour
         if (pointLightsBuffer != null)
             pointLightsBuffer.Release();
     }
+    
+    public int GetPointLightsCount()
+    {
+        return pointLightsCount;
+    }
 }

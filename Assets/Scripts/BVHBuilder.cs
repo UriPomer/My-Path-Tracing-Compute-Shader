@@ -112,7 +112,7 @@ public class BVHBuilder
         
         materials.Add(new MaterialData()
         {
-            Color = new Vector3(1.0f, 1.0f, 1.0f), // white color by default
+            Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f), // white color by default
             Emission = Vector3.zero,
             Metallic = 0.0f,
             Smoothness = 0.0f,

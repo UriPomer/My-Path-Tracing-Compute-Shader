@@ -100,7 +100,6 @@ float3 Shade(inout Ray ray, RayHit hit)
                 continue;
             float3 rayDir = lightPos.xyz - hit.position;
             float rayDist = length(rayDir);
-            // TODO: maybe can be changed to an variable
             float distDecay = max(0.0, rayDist - lightPos.w);
             distDecay = pow(0.2, distDecay * distDecay);
             rayDir /= rayDist;
@@ -111,45 +110,82 @@ float3 Shade(inout Ray ray, RayHit hit)
                     lightColor.rgb * lightColor.a * distDecay;
             }
         }
-        
-        // Calculate chances of diffuse and specular reflection
-        float diffChance = dot(hit.material.albedo, LUM) * (1.0 - hit.material.metallic);
 
         float roulette = rand();
-        ray.origin = hit.position + hit.normal * 1e-5; // Offset the origin slightly to avoid self-intersection
-        if(roulette > diffChance)
+        if (hit.mode >= 3.0)
         {
+            float outside = dot(ray.dir, hit.normal);
+            hit.normal *= sign(outside);
+            ray.origin = hit.position + hit.normal * 1e-5;
+            // dielectric workflow
             float alpha = SmoothnessToPhongAlpha(hit.material.roughness);
-            float3 rayOutDir = normalize(lerp(
-                reflect(ray.dir,hit.normal),
-                SampleReflectionDirectionSphere(hit.normal, alpha),
+            hit.normal = normalize(lerp(
+                hit.normal,
+                SampleReflectionDirectionSphere(hit.normal,alpha),
                 hit.material.roughness * hit.material.roughness
-                ));
-            float3 H = normalize(rayOutDir + ray.dir);  // Half vector
-            float NdotL = abs(dot(hit.normal, ray.dir));
-            float specColor = lerp(0.04, 1.0, hit.material.metallic);
-            float3 F = SchlickFresnel(specColor, dot(rayOutDir, H));
-            float G = SmithG(NdotL, hit.material.roughness);
-            ray.energy *= F * G;
-
-            ray.dir = rayOutDir;
-            ray.energy *= 1.0 / clamp(1.0 - diffChance, 1e-2, 1.0);
-            lightContribution *= hit.material.roughness * hit.material.roughness;
-        }
-        else{
-            float alpha = SmoothnessToPhongAlpha(hit.material.roughness);
-            float3 rayOutDir = normalize(SampleReflectionDirectionSphere(hit.normal, alpha));
-            float3 H = normalize(rayOutDir + ray.dir);  // Half vector
-            float NdotL = saturate(dot(hit.normal, ray.dir));
-            float NdotV = saturate(dot(hit.normal, rayOutDir));
-            float fd90 = 0.5 + 2.0 * hit.material.roughness * dot(rayOutDir, H) * dot(rayOutDir, H);
-            float fd = lerp(1.0, fd90, NdotL) * lerp(1.0, fd90, NdotV);
-            ray.energy *= (1.0 - hit.material.metallic) * fd * hit.material.albedo;
-
-            ray.dir = rayOutDir;
-            ray.energy *= 1.0 / clamp(diffChance, 1e-2, 1.0);
+            ));
+            float3 rayOutDir = normalize(reflect(ray.dir, hit.normal));
+            float3 H = normalize(ray.dir + rayOutDir);
+            float fresnel = DielectricFresnel(dot(H, ray.dir), hit.material.ior);
+            float reflChance = 1.0 - (1.0 - fresnel) * (1.0 - hit.material.metallic);
+            if (roulette < reflChance)
+            {
+                //rayOutDir = normalize(reflect(-ray.dir, H));
+                SpecReflModel(hit, ray.dir, rayOutDir, H, ray.energy);
+                ray.dir = rayOutDir;
+                ray.energy *= 1.0 / clamp(reflChance, 1e-2, 1.0);
+                lightContribution *= reflChance;
+            }
+            else
+            {
+                //rayOutDir = -normalize(refract(-ray.dir, H, 1.0 / hit.mat.ior));
+                rayOutDir = normalize(refract(ray.dir, -hit.normal, 1.0 / hit.material.ior));
+                SpecRefrModel(hit, ray.dir, rayOutDir, H, ray.energy);
+                ray.dir = rayOutDir;
+                ray.energy *= 1.0 / clamp((1.0 - reflChance), 1e-2, 1.0);
+                lightContribution *= reflChance;
+            }
         }
 
+        else
+        {
+            // Calculate chances of diffuse and specular reflection
+            float diffChance = dot(hit.material.albedo, LUM) * (1.0 - hit.material.metallic);
+            
+            ray.origin = hit.position + hit.normal * 1e-5; // Offset the origin slightly to avoid self-intersection
+            if(roulette > diffChance)
+            {
+                float alpha = SmoothnessToPhongAlpha(hit.material.roughness);
+                float3 rayOutDir = normalize(lerp(
+                    reflect(ray.dir,hit.normal),
+                    SampleReflectionDirectionSphere(hit.normal, alpha),
+                    hit.material.roughness * hit.material.roughness
+                    ));
+                float3 H = normalize(rayOutDir + ray.dir);  // Half vector
+                float NdotL = abs(dot(hit.normal, ray.dir));
+                float specColor = lerp(0.04, 1.0, hit.material.metallic);
+                float3 F = SchlickFresnel(specColor, dot(rayOutDir, H));
+                float G = SmithG(NdotL, hit.material.roughness);
+                ray.energy *= F * G;
+
+                ray.dir = rayOutDir;
+                ray.energy *= 1.0 / clamp(1.0 - diffChance, 1e-2, 1.0);
+                lightContribution *= hit.material.roughness * hit.material.roughness;
+            }
+            else{
+                float alpha = SmoothnessToPhongAlpha(hit.material.roughness);
+                float3 rayOutDir = normalize(SampleReflectionDirectionSphere(hit.normal, alpha));
+                float3 H = normalize(rayOutDir + ray.dir);  // Half vector
+                float NdotL = saturate(dot(hit.normal, ray.dir));
+                float NdotV = saturate(dot(hit.normal, rayOutDir));
+                float fd90 = 0.5 + 2.0 * hit.material.roughness * dot(rayOutDir, H) * dot(rayOutDir, H);
+                float fd = lerp(1.0, fd90, NdotL) * lerp(1.0, fd90, NdotV);
+                ray.energy *= (1.0 - hit.material.metallic) * fd * hit.material.albedo;
+
+                ray.dir = rayOutDir;
+                ray.energy *= 1.0 / clamp(diffChance, 1e-2, 1.0);
+            }
+        }
         return hit.material.emission + lightContribution;
     }
     else

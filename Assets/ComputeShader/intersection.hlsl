@@ -409,6 +409,30 @@ bool IntersectTlasFast(Ray ray, RayHit bestHit, float targetDist)
     return false;
 }
 
+void SpecReflModel(RayHit hit, float3 V, float3 L, float3 H, inout float3 energy)
+{
+    float NdotL = abs(dot(hit.normal, L));
+    //float NdotV = abs(dot(hit.norm, -V));
+    float3 specColor = lerp(0.04, hit.material.albedo, hit.material.metallic);
+    float3 F = SchlickFresnel(dot(L, H), specColor);
+    //float D = DistributionGGX(hit.norm, H, hit.mat.roughness);
+    //float G = GeometrySmith(hit.norm, -V, L, hit.mat.roughness);
+    float G = SmithG(NdotL, hit.material.roughness);
+    energy *= F * G;
+}
+
+void SpecRefrModel(RayHit hit, float3 V, float3 L, float3 H, inout float3 energy)
+{
+    float NdotL = abs(dot(hit.normal, L));
+    //float NdotV = abs(dot(-hit.norm, -V));
+    float F = DielectricFresnel(dot(V, H), hit.material.ior);
+    //float D = DistributionGGX(hit.norm, H, hit.mat.roughness);
+    float G = SmithG(NdotL, hit.material.roughness);
+    //float eta2 = hit.mat.ior * hit.mat.ior;
+    energy *= pow(hit.material.albedo, 0.5) * (1.0 - hit.material.metallic) *
+        (1.0 - F) * G;
+}
+
 // void IntersectTlasTree(Ray ray, inout RayHit bestHit)
 // {
 //     int stack[BVHTREE_RECURSE_SIZE];

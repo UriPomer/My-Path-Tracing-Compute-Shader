@@ -1,13 +1,3 @@
-struct Sphere
-{
-    float3 position;
-    float radius;
-    float3 albedo;
-    float3 specular;
-    float smoothness;
-    float3 emission;
-};
-
 struct Ray
 {
     float3 origin;
@@ -27,10 +17,11 @@ struct Material
 
 struct RayHit
 {
-    float3 position;
     float distance;
+    float3 position;
     float3 normal;
     Material material;
+    float mode;
 };
 
 RWTexture2D<float4> _Result;
@@ -51,8 +42,6 @@ const float3 LUM = float3(0.2126, 0.7152, 0.0722);
 
 float2 _Pixel;
 float _Seed;
-
-RWStructuredBuffer<Sphere> _Spheres;
 
 // object info
 struct MeshData
@@ -88,8 +77,8 @@ struct TLASNode
 {
     float3 boundMax;
     float3 boundMin;
-    int rawNodeStartIdx;
-    int rawNodeEndIdx;
+    int meshNodeStartIdx;
+    int meshNodeEndIdx;
     int childIdx;
 };
 StructuredBuffer<TLASNode> _TNodes;
@@ -175,7 +164,8 @@ RayHit GenRayHit()
     hit.position = float3(0.0f, 0.0f, 0.0f);
     hit.distance = 1.#INF;
     hit.normal = float3(0.0f, 0.0f, 0.0f);
-    hit.material = GenMaterial(float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f), 0.0f, 0.0f, 0.0f, 0.0f);
+    hit.material = GenMaterial(float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f), 0.0f, 0.0f, 1.0f, 1.0f);
+    hit.mode = 0.0f;
     return hit;
 }
 
