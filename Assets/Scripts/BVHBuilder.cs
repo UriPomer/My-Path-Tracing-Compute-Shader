@@ -42,6 +42,7 @@ public class BVHBuilder
     
     // algorithm data
     private static List<int> indices = new List<int>(); // indices of vertices
+    public static Dictionary<int,int> nodeStartToEnd = new Dictionary<int, int>();
     
     public static ComputeBuffer VertexBuffer;
     public static ComputeBuffer UVBuffer;

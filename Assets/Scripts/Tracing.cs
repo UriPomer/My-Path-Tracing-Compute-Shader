@@ -20,6 +20,9 @@ public class Tracing : MonoBehaviour
     [SerializeField, Range(2, 20)]
     int TraceDepth = 5;
     
+    [SerializeField]
+    private bool drawGizmos = true;
+    
     
     private void Start()
     {
@@ -107,6 +110,7 @@ public class Tracing : MonoBehaviour
 
     private void OnDrawGizmos()
     {
+        if (!drawGizmos) return;
         var bnodes = BVHBuilder.GetBLASNodes();
         var meshNodes = BVHBuilder.GetMeshNodes();
         var transforms = BVHBuilder.GetTransforms();
@@ -123,15 +127,16 @@ public class Tracing : MonoBehaviour
                 var size = meshNode.BoundMax - meshNode.BoundMin;
                 Gizmos.DrawWireCube(localToWorld.MultiplyPoint3x4(boundCenter), localToWorld.MultiplyVector(size));
                 
-                
-                // draw bvh bounds
-                // find left and right child until leaf node
-                for(int j = meshNode.NodeRootIdx; j < meshNode.NodeEndIdx; j++)
+                for(int j = meshNode.NodeRootIdx; j < BVHBuilder.nodeStartToEnd[meshNode.NodeRootIdx]; j++)
                 {
                     var bnode = bnodes[j];
-                    var bnodeBoundCenter = (bnode.BoundMin + bnode.BoundMax) / 2;
-                    var bnodeSize = bnode.BoundMax - bnode.BoundMin;
-                    Gizmos.DrawWireCube(localToWorld.MultiplyPoint3x4(bnodeBoundCenter), localToWorld.MultiplyVector(bnodeSize));
+                    if(bnode.PrimitiveStartIdx < 0) continue;
+                    var min = localToWorld.MultiplyPoint3x4(bnode.BoundMin);
+                    var max = localToWorld.MultiplyPoint3x4(bnode.BoundMax);
+                    var center = (min + max) / 2;
+                    var s = max - min;
+                    Gizmos.color = Color.red;
+                    Gizmos.DrawWireCube(center, s);
                 }
             }
         }

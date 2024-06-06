@@ -42,6 +42,7 @@ public struct TLASNode
     public static int TypeSize = sizeof(float)*3*2+sizeof(int)*3;
 }
 
+
 public class AABB
 {
     public Vector3 min;
@@ -234,6 +235,7 @@ public class BVH
             TransformIdx = objectTransformIdx,
             NodeRootIdx = bnodesCount,
         });
+        BVHBuilder.nodeStartToEnd.Add(bnodesCount, bnodes.Count);
     }
     
     /// <summary>
@@ -343,8 +345,6 @@ public class BVH
             min = Vector3.Min(min, primitiveInfos[i].Bounds.min);
             max = Vector3.Max(max, primitiveInfos[i].Bounds.max);
         }
-        
-        Debug.Log($"Bounding box: {bounding.min} {bounding.max}");
 
         int primitiveInfoCount = end - start;
         // 如果只有一个面片，直接创建叶子节点
@@ -353,7 +353,6 @@ public class BVH
             int idx = OrderedPrimitiveIndices.Count;
             int primitiveIdx = primitiveInfos[start].PrimitiveIdx;
             // 从这里可以看出，OrderedPrimitiveIndices中存储的是面片的索引，排序后的索引对应原面片索引
-            //TODO: 那么这个顺序有什么用呢？
             OrderedPrimitiveIndices.Add(primitiveIdx);
             return BVHNode.CreateLeaf(idx, 1, bounding);
         }
@@ -441,7 +440,7 @@ public class BVH
             
             // 如果没有任何划分的cost比当前的叶子节点还要大，则直接创建叶子节点，要不然只是徒增cost
             float leafCost = primitiveInfoCount;
-            minCost = 1.0f + minCost / bounding.SurfaceArea();
+            minCost = 10f + minCost / bounding.SurfaceArea();
 
             if (primitiveInfoCount > 32 || minCost < leafCost) //继续划分
             {
