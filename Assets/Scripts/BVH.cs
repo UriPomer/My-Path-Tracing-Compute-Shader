@@ -440,9 +440,9 @@ public class BVH
             
             // 如果没有任何划分的cost比当前的叶子节点还要大，则直接创建叶子节点，要不然只是徒增cost
             float leafCost = primitiveInfoCount;
-            minCost = 1f + minCost / bounding.SurfaceArea();
+            minCost = BVHBuilder.BVHCostOffset + minCost / bounding.SurfaceArea();
 
-            if (primitiveInfoCount > 32 || minCost < leafCost) //继续划分
+            if (primitiveInfoCount > 16 || minCost < leafCost) //继续划分
             {
                 List<PrimitiveInfo> leftInfos = new();
                 List<PrimitiveInfo> rightInfos = new();

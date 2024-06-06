@@ -2,12 +2,6 @@
 
 #include "intersection.hlsl"
 
-
-float energy(float3 color)
-{
-    return dot(color, 1.0f / 3.0f);
-}
-
 Ray GenRayByID(float2 pixelCoord)
 {
     uint width, height;
@@ -22,12 +16,13 @@ Ray GenRayByID(float2 pixelCoord)
 
     Ray ray;
     ray.origin = mul(_CameraToWorld, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
+    //TODO: 随机生成光线方向
+    
     ray.dir = normalize(worldDir);
     ray.energy = float3(1.0f, 1.0f, 1.0f);
 
     return ray;
 }
-
 
 float3 SampleSkybox(Ray ray)
 {
@@ -50,24 +45,6 @@ RayHit Trace(Ray ray)
     IntersectTlas(ray, bestHit);
     return bestHit;
 }
-
-
-// RayHit Trace(Ray r)
-// {
-//     uint numSpheres, stride;
-//     _Spheres.GetDimensions(numSpheres, stride);
-//     RayHit hit = GenRayHit();
-//     for(uint i = 0; i < numSpheres; i++)
-//     {
-//         Sphere sphere = _Spheres[uint(i)];
-//         RayHit tempHit = HitSphere(sphere, r);
-//         if(tempHit.distance > 0.0 && tempHit.distance < hit.distance)
-//         {
-//             hit = tempHit;
-//         }
-//     }
-//     return hit;
-// }
 
 float SmoothnessToPhongAlpha(float s)
 {

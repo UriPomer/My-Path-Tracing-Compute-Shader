@@ -483,6 +483,7 @@ MonoBehaviour:
   SkyboxIntensity: 1
   TraceDepth: 5
   drawGizmos: 1
+  BVHCostOffset: 1
 --- !u!114 &296955525
 MonoBehaviour:
   m_ObjectHideFlags: 0
