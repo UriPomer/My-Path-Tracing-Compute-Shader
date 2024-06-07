@@ -11,7 +11,7 @@ public struct BLASNode
     public int MaterialIdx;
     public int ChildIdx;
 
-    public static int TypeSize = sizeof(float)*3*2+sizeof(int)*4;
+    public static int TypeSize = sizeof(float) * 3 * 2 + sizeof(int) * 4;   //40 bytes
 }
 
 /// <summary>
@@ -24,8 +24,9 @@ public struct MeshNode
     public Vector3 BoundMin;
     public int TransformIdx;    // also the index of the object
     public int NodeRootIdx;
+    public int NodeEndIdx;
 
-    public static int TypeSize = sizeof(float)*3*2+sizeof(int)*2;
+    public static int TypeSize = sizeof(float)*3*2+sizeof(int)*3;   //36 bytes
 }
 
 /// <summary>
@@ -36,10 +37,10 @@ public struct TLASNode
     public Vector3 BoundMax;
     public Vector3 BoundMin;
     public int MeshNodeStartIdx;
-    public int MeshNodeEndIdx;
+    // public int MeshNodeEndIdx;
     public int ChildIdx;
 
-    public static int TypeSize = sizeof(float)*3*2+sizeof(int)*3;
+    public static int TypeSize = sizeof(float) * 3 * 2 + sizeof(int) * 2;   //32 bytes
 }
 
 
@@ -234,6 +235,7 @@ public class BVH
             BoundMin = BVHRoot.Bounds.min,
             TransformIdx = objectTransformIdx,
             NodeRootIdx = bnodesCount,
+            NodeEndIdx = bnodes.Count,
         });
         BVHBuilder.nodeStartToEnd.Add(bnodesCount, bnodes.Count);
     }
@@ -264,7 +266,7 @@ public class BVH
                 BoundMax = node.Bounds.max,
                 BoundMin = node.Bounds.min,
                 MeshNodeStartIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveStartIdx : -1,    // 这里的PrimitiveStartIdx实际上也是rawNode的索引，看来有必要重写，要不然很容易混淆
-                MeshNodeEndIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveEndIdx : -1,
+                // MeshNodeEndIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveEndIdx : -1,
                 ChildIdx = node.PrimitiveStartIdx >= 0 ? -1 : nodes.Count + tnodes.Count + 1
             });
             if (node.LeftChild != null) nodes.Enqueue(node.LeftChild);
@@ -442,7 +444,7 @@ public class BVH
             float leafCost = primitiveInfoCount;
             minCost = BVHBuilder.BVHCostOffset + minCost / bounding.SurfaceArea();
 
-            if (primitiveInfoCount > 16 || minCost < leafCost) //继续划分
+            if (primitiveInfoCount > 256 && minCost < leafCost) //继续划分
             {
                 List<PrimitiveInfo> leftInfos = new();
                 List<PrimitiveInfo> rightInfos = new();

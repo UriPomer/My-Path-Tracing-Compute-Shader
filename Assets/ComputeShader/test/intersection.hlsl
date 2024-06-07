@@ -156,7 +156,7 @@ void IntersectGround(Ray ray, inout RayHit bestHit, float yVal = 0.0)
         bestHit.position = ray.origin + t * ray.dir;
         bestHit.distance = t;
         bestHit.normal = float3(0.0, 1.0, 0.0);
-        bestHit.material = GenMaterial(float3(1.0, 1.0, 1.0), float3(0.0, 0.0, 0.0), 0.0, 0.0, 1.0, 1.0);
+        bestHit.material = GenMaterial(float3(1.0, 1.0, 1.0), float3(0.0, 0.0, 0.0), 0.0, 0.0, 0.0, 0.0);
     }
 }
 
@@ -250,16 +250,12 @@ bool IntersectBox3(Ray ray, RayHit bestHit, float3 pMax, float3 pMin)
 /*
  *与BLAS树中的三角形面求交
  */
-void IntersectBlasTree(Ray ray, inout RayHit bestHit, int startIdx, int transformIdx)
+void IntersectBlasTree(Ray ray, inout RayHit bestHit, int startIdx,int endIdx, int transformIdx)
 {
-    int stack[BVHTREE_RECURSE_SIZE];
-    int stackPtr = 0;
     int primitiveIdx;
-    stack[stackPtr] = startIdx;
     float4x4 localToWorld = _Transforms[transformIdx * 2];
-    while (stackPtr >= 0 && stackPtr < BVHTREE_RECURSE_SIZE)
+    for (int idx = startIdx; idx < endIdx; idx++)
     {
-        int idx = stack[stackPtr--];    //模拟栈
         BLASNode node = _BNodes[idx];   //获取当前BLAS节点
 
         bool hit = IntersectBox2(ray, node.boundMax, node.boundMin);    // 和BLAS的包围盒求交
@@ -303,11 +299,6 @@ void IntersectBlasTree(Ray ray, inout RayHit bestHit, int startIdx, int transfor
                     }
                 }
             }
-            else
-            {
-                stack[++stackPtr] = node.childIdx;  //左子节点
-                stack[++stackPtr] = node.childIdx + 1;  //右子节点
-            }
         }
     }
 }
@@ -315,19 +306,18 @@ void IntersectBlasTree(Ray ray, inout RayHit bestHit, int startIdx, int transfor
 /*
  *判断是否与BLAS树中的三角形面相交
  */
-bool IntersectBlasTreeFast(Ray ray, int startIdx, float targetDist)
+bool IntersectBlasTreeFast(Ray ray, int startIdx,int endIdx, float targetDist)
 {
     int stack[BVHTREE_RECURSE_SIZE];
     int stackPtr = 0;
     int primitiveIdx;
     stack[stackPtr] = startIdx;
-    while (stackPtr >= 0 && stackPtr < BVHTREE_RECURSE_SIZE)
-    {
-        int idx = stack[stackPtr--];
+    for (int idx = startIdx; idx < endIdx; idx++){
         BLASNode node = _BNodes[idx];
         // check if ray intersect with bounding box
         bool hit = IntersectBox2(ray, node.boundMax, node.boundMin);
         bool leaf = node.primitiveStartIdx >= 0;
+        int primitiveIdx;
         if (hit)
         {
             if (leaf)
@@ -360,11 +350,7 @@ bool IntersectBlasTreeFast(Ray ray, int startIdx, float targetDist)
                     }
                 }
             }
-            else
-            {
-                stack[++stackPtr] = node.childIdx;
-                stack[++stackPtr] = node.childIdx + 1;
-            }
+
         }
     }
     return false;
@@ -382,7 +368,7 @@ void IntersectTlas(Ray ray, inout RayHit bestHit)
         {
             // intersect with BLAS tree
             PrepareTreeEnterHit(localRay, bestHit, node.transformIdx);
-            IntersectBlasTree(localRay, bestHit, node.rootIdx, node.transformIdx);
+            IntersectBlasTree(localRay, bestHit, node.rootIdx,node.endIdx, node.transformIdx);
             PrepareTreeExit(ray, bestHit, node.transformIdx);
         }
     }
@@ -401,7 +387,7 @@ bool IntersectTlasFast(Ray ray, RayHit bestHit, float targetDist)
         {
             // PrepareTreeEnterHit(localRay, bestHit, node.transformIdx); //注释掉的这两行一点用都没有，一个把bestHit传进去，一个把bestHit传出来，但是在这个函数里面并没有用到bestHit
             dist = PrepareTreeEnterTargetDistance(targetDist, node.transformIdx);   //dist是局部坐标系中的距离
-            if (IntersectBlasTreeFast(localRay, node.rootIdx, dist))
+            if (IntersectBlasTreeFast(localRay, node.rootIdx,node.endIdx, dist))
                 return true;
             // PrepareTreeExit(ray, bestHit, node.transformIdx);
         }

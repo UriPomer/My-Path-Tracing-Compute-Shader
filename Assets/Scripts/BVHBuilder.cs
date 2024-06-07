@@ -263,7 +263,7 @@ public class BVHBuilder
         BuildMeshData(objects,matStart);
         
         // build TLAS bvh
-        ReloadTLAS();
+        RebuildTLAS();
         
         SetBuffers();
         
@@ -301,8 +301,9 @@ public class BVHBuilder
         SetBuffer(ref MaterialBuffer, materials, MaterialData.TypeSize);
         SetBuffer(ref BLASBuffer, bnodes, BLASNode.TypeSize);
     }
-
-    public static void ReloadTLAS()
+    
+    
+    public static void RebuildTLAS()
     {
         if (meshNodes.Count <= 0) return;
         if (transforms.Count <= 0) LoadTransforms();
