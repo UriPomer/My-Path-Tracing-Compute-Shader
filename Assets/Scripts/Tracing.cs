@@ -25,24 +25,33 @@ public class Tracing : MonoBehaviour
     [SerializeField, Range(0.0f, 1.0f)]
     private float BVHCostOffset = 1.0f;
     
+    private int sampleCount = 0;
     
+    private Material collectMaterial;
+    private RenderTexture frameConverged;
+
+    private void Awake()
+    {
+        if (collectMaterial == null)
+            collectMaterial = new Material(Shader.Find("Hidden/Collect"));
+    }
+
     private void Start()
     {
         BVHBuilder.SetCostOffset(BVHCostOffset);
         cam = GetComponent<Camera>();
+        LightManager.Instance.UpdateLights();
     }
 
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-        BVHBuilder.Validate();
-
         Render(destination);
     }
 
     private void Render(RenderTexture destination)
     {
-        int kernelID = tracingShader.FindKernel("CSMain");
-        
+        SetShaderParameters(1000);
+        sampleCount++;
         if (target == null || target.width != Screen.width || target.height != Screen.height)
         {
             if (target != null) target.Release();
@@ -51,55 +60,78 @@ public class Tracing : MonoBehaviour
             target.enableRandomWrite = true;
             target.Create();
         }
+        if (frameConverged == null ||
+            frameConverged.width != Screen.width ||
+            frameConverged.height != Screen.height)
+        {
+            if (frameConverged != null)
+                frameConverged.Release();
+            frameConverged = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            frameConverged.enableRandomWrite = true;
+            frameConverged.Create();
+        }
         
-        LightManager.Instance.UpdateLights();
-
-        var DirectionalLight = LightManager.Instance.DirectionalLight;
-        
-        Vector3 dir = DirectionalLight.transform.forward;
-        Vector3 directionalLightInfo = new Vector3(-dir.x, -dir.y, -dir.z);
-        Vector3 directionalLightColorInfo = new Vector4(
-            DirectionalLight.color.r,
-            DirectionalLight.color.g,
-            DirectionalLight.color.b,
-            DirectionalLight.intensity
-        );
-
-        var pointLightsBuffer = LightManager.Instance.pointLightsBuffer;
-        
-        tracingShader.SetVector("_DirectionalLight", directionalLightInfo);
-        tracingShader.SetVector("_DirectionalLightColor", directionalLightColorInfo);
-        tracingShader.SetFloat("_Seed", UnityEngine.Random.value);
-        tracingShader.SetTexture(kernelID, "_Result", target);
-        tracingShader.SetVector("_Resolution", new Vector2(Screen.width, Screen.height));
-        tracingShader.SetMatrix("_CameraToWorld", cam.cameraToWorldMatrix);
-        tracingShader.SetMatrix("_CameraInverseProjection", cam.projectionMatrix.inverse);
-        tracingShader.SetTexture(kernelID, "_SkyboxTexture", skyboxTexture);
-        tracingShader.SetInt("_PointLightsCount", LightManager.Instance.GetPointLightsCount());
-        tracingShader.SetBuffer(kernelID,"_PointLights",pointLightsBuffer);
-
-		if (BVHBuilder.VertexBuffer != null) tracingShader.SetBuffer(kernelID, "_Vertices", BVHBuilder.VertexBuffer);
-        if (BVHBuilder.IndexBuffer != null) tracingShader.SetBuffer(kernelID, "_Indices", BVHBuilder.IndexBuffer);
-        if (BVHBuilder.NormalBuffer != null) tracingShader.SetBuffer(kernelID, "_Normals", BVHBuilder.NormalBuffer);
-        if (BVHBuilder.TangentBuffer != null) tracingShader.SetBuffer(kernelID, "_Tangents", BVHBuilder.TangentBuffer);
-        if (BVHBuilder.UVBuffer != null) tracingShader.SetBuffer(kernelID, "_UVs", BVHBuilder.UVBuffer);
-        if (BVHBuilder.MaterialBuffer != null) tracingShader.SetBuffer(kernelID, "_Materials", BVHBuilder.MaterialBuffer);
-        if (BVHBuilder.TLASBuffer != null) tracingShader.SetBuffer(kernelID, "_TNodes", BVHBuilder.TLASBuffer);
-        if (BVHBuilder.MeshNodeBuffer != null) tracingShader.SetBuffer(kernelID, "_MeshNodes", BVHBuilder.MeshNodeBuffer);
-        if (BVHBuilder.BLASBuffer != null) tracingShader.SetBuffer(kernelID, "_BNodes", BVHBuilder.BLASBuffer);
-        if (BVHBuilder.TransformBuffer != null) tracingShader.SetBuffer(kernelID, "_Transforms", BVHBuilder.TransformBuffer);
-        if (BVHBuilder.AlbedoTextures != null) tracingShader.SetTexture(kernelID, "_AlbedoTextures", BVHBuilder.AlbedoTextures);
-        if (BVHBuilder.EmissionTextures != null) tracingShader.SetTexture(kernelID, "_EmitTextures", BVHBuilder.EmissionTextures);
-        if (BVHBuilder.MetallicTextures != null) tracingShader.SetTexture(kernelID, "_MetallicTextures", BVHBuilder.MetallicTextures);
-        if (BVHBuilder.NormalTextures != null) tracingShader.SetTexture(kernelID, "_NormalTextures", BVHBuilder.NormalTextures);
-        if (BVHBuilder.RoughnessTextures != null) tracingShader.SetTexture(kernelID, "_RoughnessTextures", BVHBuilder.RoughnessTextures);
-
         var threadGroupsX = Mathf.CeilToInt(Screen.width / 8.0f);
         var threadGroupsY = Mathf.CeilToInt(Screen.height / 8.0f);
-        tracingShader.Dispatch(kernelID, threadGroupsX, threadGroupsY, 1);
+        int kernelID = tracingShader.FindKernel("CSMain");
+        tracingShader.SetTexture(kernelID, "_Result", target);
+        tracingShader.Dispatch(kernelID, 32, 32, 1);
+        Graphics.Blit(target, frameConverged, collectMaterial);
 
         
-        Graphics.Blit(target, destination);
+        Graphics.Blit(frameConverged, destination);
+    }
+
+    private void Update()
+    {
+        LightManager.Instance.UpdateLights();
+        BVHBuilder.Validate();
+    }
+
+    private void SetShaderParameters(int refreshRate)
+    {
+        int kernelID = tracingShader.FindKernel("CSMain");
+        if(sampleCount % refreshRate == 0)
+        {
+            var DirectionalLight = LightManager.Instance.DirectionalLight;
+        
+            Vector3 dir = DirectionalLight.transform.forward;
+            Vector3 directionalLightInfo = new Vector3(-dir.x, -dir.y, -dir.z);
+            Vector3 directionalLightColorInfo = new Vector4(
+                DirectionalLight.color.r,
+                DirectionalLight.color.g,
+                DirectionalLight.color.b,
+                DirectionalLight.intensity
+            );
+            
+            var pointLightsBuffer = LightManager.Instance.pointLightsBuffer;
+            
+            tracingShader.SetVector("_DirectionalLight", directionalLightInfo);
+            tracingShader.SetVector("_DirectionalLightColor", directionalLightColorInfo);
+            tracingShader.SetFloat("_Seed", UnityEngine.Random.value);
+            tracingShader.SetVector("_Resolution", new Vector2(Screen.width, Screen.height));
+            tracingShader.SetMatrix("_CameraToWorld", cam.cameraToWorldMatrix);
+            tracingShader.SetMatrix("_CameraInverseProjection", cam.projectionMatrix.inverse);
+            tracingShader.SetTexture(kernelID, "_SkyboxTexture", skyboxTexture);
+            tracingShader.SetInt("_PointLightsCount", LightManager.Instance.GetPointLightsCount());
+            tracingShader.SetBuffer(kernelID,"_PointLights",pointLightsBuffer);
+
+		    if (BVHBuilder.VertexBuffer != null) tracingShader.SetBuffer(kernelID, "_Vertices", BVHBuilder.VertexBuffer);
+            if (BVHBuilder.IndexBuffer != null) tracingShader.SetBuffer(kernelID, "_Indices", BVHBuilder.IndexBuffer);
+            if (BVHBuilder.NormalBuffer != null) tracingShader.SetBuffer(kernelID, "_Normals", BVHBuilder.NormalBuffer);
+            if (BVHBuilder.TangentBuffer != null) tracingShader.SetBuffer(kernelID, "_Tangents", BVHBuilder.TangentBuffer);
+            if (BVHBuilder.UVBuffer != null) tracingShader.SetBuffer(kernelID, "_UVs", BVHBuilder.UVBuffer);
+            if (BVHBuilder.MaterialBuffer != null) tracingShader.SetBuffer(kernelID, "_Materials", BVHBuilder.MaterialBuffer);
+            if (BVHBuilder.TLASBuffer != null) tracingShader.SetBuffer(kernelID, "_TNodes", BVHBuilder.TLASBuffer);
+            if (BVHBuilder.MeshNodeBuffer != null) tracingShader.SetBuffer(kernelID, "_MeshNodes", BVHBuilder.MeshNodeBuffer);
+            if (BVHBuilder.BLASBuffer != null) tracingShader.SetBuffer(kernelID, "_BNodes", BVHBuilder.BLASBuffer);
+            if (BVHBuilder.TransformBuffer != null) tracingShader.SetBuffer(kernelID, "_Transforms", BVHBuilder.TransformBuffer);
+            if (BVHBuilder.AlbedoTextures != null) tracingShader.SetTexture(kernelID, "_AlbedoTextures", BVHBuilder.AlbedoTextures);
+            if (BVHBuilder.EmissionTextures != null) tracingShader.SetTexture(kernelID, "_EmitTextures", BVHBuilder.EmissionTextures);
+            if (BVHBuilder.MetallicTextures != null) tracingShader.SetTexture(kernelID, "_MetallicTextures", BVHBuilder.MetallicTextures);
+            if (BVHBuilder.NormalTextures != null) tracingShader.SetTexture(kernelID, "_NormalTextures", BVHBuilder.NormalTextures);
+            if (BVHBuilder.RoughnessTextures != null) tracingShader.SetTexture(kernelID, "_RoughnessTextures", BVHBuilder.RoughnessTextures);
+        }
     }
     
     private void OnDisable()

@@ -191,15 +191,26 @@ public class BVH
     }
 
 
-    public List<int> OrderedPrimitiveIndices = new List<int>();
-    public BVHNode BVHRoot = null;
+    private readonly List<int> OrderedPrimitiveIndices = new List<int>();
+    private BVHNode BVHRoot = null;
 
-    public void AddSubMeshToBLAS(ref List<int> indices, ref List<BLASNode> bnodes,
-        ref List<MeshNode> tnodesRaw, List<int> subindices,
+    
+    /// <summary>
+    /// 将子网格的BVH节点转换为BLAS节点，并存到全局的BLAS节点列表和indices列表中
+    /// </summary>
+    /// <param name="indices"></param>
+    /// <param name="bnodes"></param>
+    /// <param name="meshNode"></param>
+    /// <param name="subindices"></param>
+    /// <param name="verticesIdxOffset"></param>
+    /// <param name="materialIdx"></param>
+    /// <param name="objectTransformIdx"></param>
+    public void FlattenBLAS(ref List<int> indices, ref List<BLASNode> bnodes,
+        ref List<MeshNode> meshNode, List<int> subindices,
         int verticesIdxOffset, int materialIdx, int objectTransformIdx)
     {
-        int primitiveCount = indices.Count / 3;
-        int bnodesCount = bnodes.Count;
+        int originPrimitiveCount = indices.Count / 3; // 已有的面片数量
+        int originBnodesCount = bnodes.Count; // 已有的BLAS节点数量
 
         foreach (var primitiveIdx in OrderedPrimitiveIndices)
         {
@@ -219,25 +230,25 @@ public class BVH
                 BoundMax = node.Bounds.max,
                 BoundMin = node.Bounds.min,
                 // node.PrimitiveStartIdx >= 0 说明是叶子节点
-                PrimitiveStartIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveStartIdx + primitiveCount : -1,
-                PrimitiveEndIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveEndIdx + primitiveCount : -1,
+                PrimitiveStartIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveStartIdx + originPrimitiveCount : -1,
+                PrimitiveEndIdx = node.PrimitiveStartIdx >= 0 ? node.PrimitiveEndIdx + originPrimitiveCount : -1,
                 MaterialIdx = node.PrimitiveStartIdx >= 0 ? materialIdx : 0,
-                ChildIdx = node.PrimitiveStartIdx >= 0 ? -1 : nodes.Count + bnodesCount + 1
+                ChildIdx = node.PrimitiveStartIdx >= 0 ? -1 : nodes.Count + originBnodesCount + 1
             });
             // 注意这里是先插入左节点，再插入右节点，所以在BLAS中，右节点的索引是左节点的索引+1
             if (node.LeftChild != null) nodes.Enqueue(node.LeftChild);
             if (node.RightChild != null) nodes.Enqueue(node.RightChild);
         }
 
-        tnodesRaw.Add(new MeshNode
+        meshNode.Add(new MeshNode
         {
             BoundMax = BVHRoot.Bounds.max,
             BoundMin = BVHRoot.Bounds.min,
             TransformIdx = objectTransformIdx,
-            NodeRootIdx = bnodesCount,
+            NodeRootIdx = originBnodesCount,
             NodeEndIdx = bnodes.Count,
         });
-        BVHBuilder.nodeStartToEnd.Add(bnodesCount, bnodes.Count);
+        BVHBuilder.nodeStartToEnd.Add(originBnodesCount, bnodes.Count);
     }
     
     /// <summary>
@@ -249,13 +260,13 @@ public class BVH
     /// <param name="tnodes"></param>
     public void FlattenTLAS(ref List<MeshNode> meshNodes, ref List<TLASNode> tnodes)
     {
-        List<MeshNode> orderedRawNodes = new List<MeshNode>();
-        foreach (var rawNodeIdx in OrderedPrimitiveIndices) //实际上，在这里OrderedPrimitiveIndices存储的是rawNode(Mesh)的索引，而不是primitive的索引
+        List<MeshNode> orderedMeshNodes = new List<MeshNode>();
+        foreach (var meshNodeIdx in OrderedPrimitiveIndices) //实际上，在这里OrderedPrimitiveIndices存储的是rawNode(Mesh)的索引，而不是primitive的索引
         {
-            orderedRawNodes.Add(meshNodes[rawNodeIdx]);
+            orderedMeshNodes.Add(meshNodes[meshNodeIdx]);
         }
 
-        meshNodes = orderedRawNodes;
+        meshNodes = orderedMeshNodes;
         Queue<BVHNode> nodes = new();
         nodes.Enqueue(BVHRoot);
         while (nodes.Count > 0)
@@ -279,18 +290,18 @@ public class BVH
     private List<PrimitiveInfo> createPrimitiveInfo(List<Vector3> vertices, List<int> indices)
     {
         List<PrimitiveInfo> infos = new();
-        for (int i = 0; i < indices.Count; i += 3)
+        for (int i = 0; i < indices.Count / 3; i++)
         {
             infos.Add(new PrimitiveInfo
             {
                 Bounds = new AABB(
-                    vertices[indices[i]],
-                    vertices[indices[i + 1]],
-                    vertices[indices[i + 2]]
+                    vertices[indices[i * 3]],
+                    vertices[indices[i * 3 + 1]],
+                    vertices[indices[i * 3 + 2]]
                 ),
-                PrimitiveIdx = i / 3
+                PrimitiveIdx = i
             });
-            infos[i / 3].Center = infos[i / 3].Bounds.Center();
+            infos[i].Center = infos[i].Bounds.Center();
         }
 
         return infos;
@@ -300,16 +311,16 @@ public class BVH
     /// 通过TLASRawNode和Transforms生成PrimitiveInfo
     /// 这里的rawNodes，通常情况下，场景中有几个物体，就有几个rawNodes，但如何一个mesh有多个submesh，那么这个mesh就会有多个rawNodes
     /// </summary>
-    /// <param name="rawNodes"></param>
+    /// <param name="meshNodes"></param>
     /// <param name="transforms"></param>
     /// <returns></returns>
-    private List<PrimitiveInfo> createPrimitiveInfo(List<MeshNode> rawNodes, List<Matrix4x4> transforms) 
+    private List<PrimitiveInfo> createPrimitiveInfo(List<MeshNode> meshNodes, List<Matrix4x4> transforms) 
         //这个函数完全可以改名，它只是把rawNode的包围盒从local space转换到world space，并且计算了变换后的包围盒的中心点
     {
         List<PrimitiveInfo> infos = new();
-        for (int i = 0; i < rawNodes.Count; i++)
+        for (int i = 0; i < meshNodes.Count; i++)
         {
-            var node = rawNodes[i];
+            var node = meshNodes[i];
             infos.Add(new PrimitiveInfo
             {
                 // 这里的乘以2是因为每个Transform有两个矩阵，一个是localToWorld，一个是worldToLocal，这里的transform是localToWorld，如果加一才那就是worldToLocal
@@ -338,14 +349,10 @@ public class BVH
     private BVHNode Build(List<PrimitiveInfo> primitiveInfos, int start, int end)
     {
         AABB bounding = new();
-        Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
-        Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
         //  计算所有面片的包围盒
         for (int i = start; i < end; i++)
         {
             bounding.Extend(primitiveInfos[i].Bounds);
-            min = Vector3.Min(min, primitiveInfos[i].Bounds.min);
-            max = Vector3.Max(max, primitiveInfos[i].Bounds.max);
         }
 
         int primitiveInfoCount = end - start;
@@ -379,9 +386,9 @@ public class BVH
             return BVHNode.CreateLeaf(idx, primitiveInfoCount, bounding);
         }
 
-        if (primitiveInfoCount <= 2) // 面片数量太少，直接创建叶子节点
+        if (primitiveInfoCount <= 2) // 面片数量太少，跳过SAH，直接按照中心点在最大维度上的位置排序
         {
-            primitiveInfos.Sort(start, end - start, Comparer<PrimitiveInfo>.Create((x, y) =>
+            primitiveInfos.Sort(start, primitiveInfoCount, Comparer<PrimitiveInfo>.Create((x, y) =>
                 x.Center[dim].CompareTo(y.Center[dim]) //按照中心点在最大维度上的位置排序
             ));
         }
@@ -402,28 +409,27 @@ public class BVH
             }
 
             //处理桶的cost
-            List<int> countLeft = new List<int>() { buckets[0].Count };
-            List<int> countRight = new List<int>() { 0 };
-            List<AABB> boundsLeft = new() { buckets[0].Bounds };
-            List<AABB> boundsRight = new() { null };
+            List<int> countLeft = new();
+            int[] countRight = new int[nBuckets - 1];
+            List<float> areaLeft = new();
+            float[] areaRight = new float[nBuckets - 1];
 
-            //以下代码有优化空间
-            //先计算左边的
-            for (int i = 1; i < nBuckets - 1; i++)
-            {
-                countLeft.Add(countLeft[i - 1] + buckets[i].Count);
-                countRight.Add(0); //初始化为0
-                boundsLeft.Add(AABB.Combine(boundsLeft[i - 1], buckets[i].Bounds));
-                boundsRight.Add(new AABB()); //初始化为空
-            }
 
-            countRight[nBuckets - 2] = buckets[nBuckets - 1].Count;
-            boundsRight[nBuckets - 2] = buckets[nBuckets - 1].Bounds;
-            //计算右边的
-            for (int i = nBuckets - 3; i >= 0; i--)
+            int leftSum = 0;
+            int rightSum = 0;
+            AABB leftBox = new();
+            AABB rightBox = new();
+            for (int i = 0; i < nBuckets - 1; i++)    // 12个桶，只有11个划分点
             {
-                countRight[i] = countRight[i + 1] + buckets[i + 1].Count;
-                boundsRight[i] = AABB.Combine(boundsRight[i + 1], buckets[i + 1].Bounds);
+                leftSum += buckets[i].Count;
+                countLeft.Add(leftSum);
+                leftBox.Extend(buckets[i].Bounds);
+                areaLeft.Add(leftBox.SurfaceArea());
+                
+                rightSum += buckets[nBuckets - 1 - i].Count;
+                countRight[nBuckets - 2 - i] = rightSum;
+                rightBox.Extend(buckets[nBuckets - 1 - i].Bounds);
+                areaRight[nBuckets - 2 - i] = rightBox.SurfaceArea();
             }
 
             //计算cost
@@ -432,7 +438,7 @@ public class BVH
             for (int i = 0; i < nBuckets - 1; i++)
             {
                 if (countLeft[i] == 0 || countRight[i] == 0) continue;
-                float cost = countLeft[i] * boundsLeft[i].SurfaceArea() + countRight[i] * boundsRight[i].SurfaceArea();
+                float cost = countLeft[i] * areaLeft[i] + countRight[i] * areaRight[i];
                 if (cost < minCost)
                 {
                     minCost = cost;
@@ -444,7 +450,7 @@ public class BVH
             float leafCost = primitiveInfoCount;
             minCost = BVHBuilder.BVHCostOffset + minCost / bounding.SurfaceArea();
 
-            if (primitiveInfoCount > 256 && minCost < leafCost) //继续划分
+            if (primitiveInfoCount > 16 || minCost < leafCost) //继续划分
             {
                 List<PrimitiveInfo> leftInfos = new();
                 List<PrimitiveInfo> rightInfos = new();

@@ -241,7 +241,7 @@ public class BVHBuilder
                 //TODO:
                 //这里的build是build了BVHNode，这个BVH和下面的bnodes的区别是什么？
                 BVH blasTree = new BVH(meshVertices, subMeshIndices);   //这个对象创建之后就没有用了，数据存储在下面的ref的参数里
-                blasTree.AddSubMeshToBLAS(ref indices, ref bnodes, ref meshNodes, subMeshIndices, vertexStart, i < matCount ? i + matStart : 0, objectIdx);
+                blasTree.FlattenBLAS(ref indices, ref bnodes, ref meshNodes, subMeshIndices, vertexStart, i < matCount ? i + matStart : 0, objectIdx);
             }
             vertices.AddRange(meshVertices);
             normals.AddRange(meshNormals);
