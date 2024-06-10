@@ -75,7 +75,7 @@ public class Tracing : MonoBehaviour
             frameConverged.Create();
         }
         
-        SetShaderParameters(1000);
+        SetShaderParameters(100);
         sampleCount++;
         dispatchGroupXFull = Mathf.CeilToInt(Screen.width / 8.0f);
         dispatchGroupYFull = Mathf.CeilToInt(Screen.height / 8.0f);
