@@ -101,7 +101,7 @@ public class BVHBuilder
         return BuildBVH() || LoadTransforms();
     }
     
-    private static void BuildMaterialData(List<GameObject> objects)
+    private static void BuildMaterialAndMeshData(List<GameObject> objects)
     {
         materials.Clear();
         List<Texture2D> albedoTex = new List<Texture2D>();
@@ -129,7 +129,7 @@ public class BVHBuilder
         {
             Renderer renderer = obj.GetComponent<Renderer>();
             var mats = renderer.sharedMaterials;
-            int matStartIdx = materials.Count;
+            int matStart = materials.Count;
             int matCount = mats.Length;
             foreach (var mat in mats)
             {
@@ -209,31 +209,13 @@ public class BVHBuilder
                     RoughIdx = roughIdx
                 });
             }
-            // create texture 2d array
-            if (AlbedoTextures != null) UnityEngine.Object.Destroy(AlbedoTextures);
-            if (EmissionTextures != null) UnityEngine.Object.Destroy(EmissionTextures);
-            if (MetallicTextures != null) UnityEngine.Object.Destroy(MetallicTextures);
-            if (NormalTextures != null) UnityEngine.Object.Destroy(NormalTextures);
-            if (RoughnessTextures != null) UnityEngine.Object.Destroy(RoughnessTextures);
-            AlbedoTextures = CreateTextureArray(ref albedoTex);
-            EmissionTextures = CreateTextureArray(ref emitTex);
-            MetallicTextures = CreateTextureArray(ref metalTex);
-            NormalTextures = CreateTextureArray(ref normTex);
-            RoughnessTextures = CreateTextureArray(ref roughTex);
-        }
-    }
-
-    private static void BuildMeshData(List<GameObject> objects, int matStart)
-    {
-        foreach (var obj in objects)
-        {
+            
             Mesh mesh = obj.GetComponent<MeshFilter>().sharedMesh;
             var meshVertices = mesh.vertices.ToList();
             var meshNormals = mesh.normals;
             var meshUVs = mesh.uv;
             var meshTangents = mesh.tangents;
             int vertexStart = vertices.Count;
-            int matCount = obj.GetComponent<Renderer>().sharedMaterials.Length;
             int objectIdx = objects.IndexOf(obj);
             for (int i = 0; i < mesh.subMeshCount; i++)
             {
@@ -251,16 +233,26 @@ public class BVHBuilder
             // if not UV is used, insert empty one
             if (uvs.Count <= 0) uvs.Add(Vector2.zero);
         }
+        // create texture 2d array
+        if (AlbedoTextures != null) UnityEngine.Object.Destroy(AlbedoTextures);
+        if (EmissionTextures != null) UnityEngine.Object.Destroy(EmissionTextures);
+        if (MetallicTextures != null) UnityEngine.Object.Destroy(MetallicTextures);
+        if (NormalTextures != null) UnityEngine.Object.Destroy(NormalTextures);
+        if (RoughnessTextures != null) UnityEngine.Object.Destroy(RoughnessTextures);
+        AlbedoTextures = CreateTextureArray(ref albedoTex);
+        EmissionTextures = CreateTextureArray(ref emitTex);
+        MetallicTextures = CreateTextureArray(ref metalTex);
+        NormalTextures = CreateTextureArray(ref normTex);
+        RoughnessTextures = CreateTextureArray(ref roughTex);
     }
+
     
     private static bool BuildBVH()
     {
         if (!objectUpdated)
             return false;
 
-        int matStart = materials.Count;
-        BuildMaterialData(objects);
-        BuildMeshData(objects,matStart);
+        BuildMaterialAndMeshData(objects);
         
         // build TLAS bvh
         RebuildTLAS();
@@ -300,7 +292,6 @@ public class BVHBuilder
         SetBuffer(ref TangentBuffer, tangents, sizeof(float) * 4);
         SetBuffer(ref MaterialBuffer, materials, MaterialData.TypeSize);
         SetBuffer(ref BLASBuffer, bnodes, BLASNode.TypeSize);
-        Debug.Log("Set Buffers");
     }
     
     

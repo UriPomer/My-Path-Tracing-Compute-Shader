@@ -6,8 +6,6 @@
 
 #define BVHTREE_RECURSE_SIZE 32
 
-
-
 /*
  *把光线的起点和方向变换到局部坐标系，然后返回新的光线
  */
@@ -212,6 +210,7 @@ void IntersectBlasTree(Ray ray, inout RayHit bestHit, int startIdx,int endIdx, i
                             bestHit.distance = t;
                             bestHit.position = hitPos;
                             bestHit.normal = normalize(mul(localToWorld, float4(norm, 0.0)).xyz);
+                            
                             bestHit.material = mats;
                         }
                     }
