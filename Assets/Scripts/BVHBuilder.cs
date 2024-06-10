@@ -97,7 +97,7 @@ public class BVHBuilder
                 break;
             }
         }
-
+        
         return BuildBVH() || LoadTransforms();
     }
     
@@ -300,6 +300,7 @@ public class BVHBuilder
         SetBuffer(ref TangentBuffer, tangents, sizeof(float) * 4);
         SetBuffer(ref MaterialBuffer, materials, MaterialData.TypeSize);
         SetBuffer(ref BLASBuffer, bnodes, BLASNode.TypeSize);
+        Debug.Log("Set Buffers");
     }
     
     

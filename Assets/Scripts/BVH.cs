@@ -24,9 +24,9 @@ public struct MeshNode
     public Vector3 BoundMin;
     public int TransformIdx;    // also the index of the object
     public int NodeRootIdx;
-    public int NodeEndIdx;
+    // public int NodeEndIdx;
 
-    public static int TypeSize = sizeof(float)*3*2+sizeof(int)*3;   //36 bytes
+    public static int TypeSize = sizeof(float)*3*2+sizeof(int)*2;   //32 bytes
 }
 
 /// <summary>
@@ -246,7 +246,6 @@ public class BVH
             BoundMin = BVHRoot.Bounds.min,
             TransformIdx = objectTransformIdx,
             NodeRootIdx = originBnodesCount,
-            NodeEndIdx = bnodes.Count,
         });
         BVHBuilder.nodeStartToEnd.Add(originBnodesCount, bnodes.Count);
     }

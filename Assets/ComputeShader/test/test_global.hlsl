@@ -1,3 +1,6 @@
+#ifndef GLOBAL
+#define GLOBAL
+
 struct Ray
 {
     float3 origin;
@@ -79,7 +82,7 @@ struct TLASNode
     float3 boundMax;
     float3 boundMin;
     int meshNodeStartIdx;
-    // int meshNodeEndIdx;
+    int meshNodeEndIdx;
     int childIdx;
 };
 StructuredBuffer<TLASNode> _TNodes;
@@ -117,6 +120,8 @@ Texture2DArray<float4> _NormalTextures;
 SamplerState sampler_NormalTextures;
 Texture2DArray<float4> _RoughnessTextures;
 SamplerState sampler_RoughnessTextures;
+
+float2 _PixelOffset;
 
 Material GenMaterial(float3 baseColor, float3 emission,
     float metallic, float smoothness, float alpha, float ior,
@@ -180,6 +185,4 @@ Ray GenRay(float3 origin, float3 dir)
 }
 
 
-
-
-
+#endif

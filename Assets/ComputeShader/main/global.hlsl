@@ -1,3 +1,6 @@
+#ifndef GLOBAL
+#define GLOBAL
+
 struct Ray
 {
     float3 origin;
@@ -117,6 +120,8 @@ SamplerState sampler_NormalTextures;
 Texture2DArray<float4> _RoughnessTextures;
 SamplerState sampler_RoughnessTextures;
 
+float2 _PixelOffset;
+
 Material GenMaterial(float3 baseColor, float3 emission,
     float metallic, float smoothness, float alpha, float ior,
     int4 indices = -1, float2 uv = 0.0)
@@ -179,6 +184,4 @@ Ray GenRay(float3 origin, float3 dir)
 }
 
 
-
-
-
+#endif

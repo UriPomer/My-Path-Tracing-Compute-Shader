@@ -501,7 +501,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7024a6d28d75e57428f0e33c3bcc4d6d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  tracingShader: {fileID: 7200000, guid: a567f576f0b240428f86063b8434a751, type: 3}
+  tracingShader: {fileID: 7200000, guid: f729f9caa1fdb5140afe66433bd74ff9, type: 3}
   skyboxTexture: {fileID: 2800000, guid: 6ae478bd6a07f014c8a40b932c2acf59, type: 3}
   SkyboxIntensity: 1
   TraceDepth: 5

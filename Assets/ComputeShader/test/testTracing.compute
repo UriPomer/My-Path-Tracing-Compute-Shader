@@ -1,7 +1,8 @@
 #pragma kernel CSMain
 
-#include "intersection.hlsl"
-#include "colors.hlsl"
+#include "test_intersection.hlsl"
+#include "test_colors.hlsl"
+#include "test_function.hlsl"
 
 Ray GenRayByID(float2 pixelCoord)
 {

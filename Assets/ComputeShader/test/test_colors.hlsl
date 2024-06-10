@@ -1,5 +1,5 @@
-#ifndef TRACER_COLORS
-#define TRACER_COLORS
+#ifndef COLORS
+#define COLORS
 
 float3 SRGB2Linear(float3 srgbIn)
 {
